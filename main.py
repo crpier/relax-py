@@ -1,17 +1,16 @@
 from collections import defaultdict
+import warnings
 from typing import Self
 
 
-class Tag:
+class SelfClosingTag:
     name: str
 
     def __init__(
         self,
-        *args,
         klass: str | None = None,
         attrs: dict | None = None,
         id: str | None = None,
-        href: str | None = None,
     ) -> None:
         self._text: str = ""
         self._children: list[Self] = []
@@ -22,15 +21,10 @@ class Tag:
             self.attrs(attrs)
         if id:
             self.id(id)
-        if href:
-            self.href(href)
+        self._parent: SelfClosingTag | Tag | None = None
 
     def render(self) -> str:
-        return (
-            f"<{self.name} {self._render_attributes()}>"
-            f"{self._render_children()}"
-            f"</{self.name}>"
-        )
+        return f"<{self.name} {self._render_attributes()} />"
 
     def _render_attributes(self) -> str:
         return " ".join(
@@ -57,8 +51,22 @@ class Tag:
         self._attributes.update(attrs)
         return self
 
-    def insert(self, *inserted: Self, append: bool = True) -> Self:
+    def id(self, value: str) -> Self:
+        self._attributes["id"] = value
+        return self
+
+class Tag(SelfClosingTag):
+    def render(self) -> str:
+        return (
+            f"<{self.name} {self._render_attributes()}>"
+            f"{self._render_children()}"
+            f"</{self.name}>"
+        )
+
+    def insert(self, *inserted: "SelfClosingTag | Tag", append: bool = True) -> Self:
         children = list(inserted)
+        for child in children:
+            child._parent = self
         if self._text:
             raise Exception("Cannot have text and children")
         if append:
@@ -67,20 +75,45 @@ class Tag:
             self._children = children
         return self
 
-    def id(self, value: str) -> Self:
-        self._attributes["id"] = value
-        return self
 
-    def href(self, value: str) -> Self:
-        self._attributes["href"] = value
-        return self
+class div(Tag):
+    name = "div"
 
 
-def create_tag(name):
-    return type(name, (Tag,), {"name": name})
+class a(Tag):
+    name = "a"
+
+    def __init__(self, *args, href: str, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._attributes["href"] = href
 
 
-div = create_tag("div")
-a = create_tag("a")
-li = create_tag("li")
-label = create_tag("label")
+class li(Tag):
+    name = "li"
+
+    def render(self, *args, **kwargs) -> str:
+        if self._parent and self._parent.name not in ["ul", "ol"]:
+            warnings.warn(f'"{self.name}" element should be a child of "ul" or "ol"')
+        return super().render()
+
+
+class ul(Tag):
+    name = "ul"
+
+    def insert(self, *children: li, **kwargs):
+        return super().insert(*children, **kwargs)
+
+
+class label(Tag):
+    name = "label"
+
+
+class img(SelfClosingTag):
+    name = "img"
+
+    def __init__(self, *args, alt: str, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._attributes["alt"] = alt
+
+    def render(self) -> str:
+        return super().render()

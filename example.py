@@ -1,17 +1,20 @@
-from main import div, li, a, label
+from main import div, li, a, label, img, ul
 
 button = div(
     klass="text-left text-4xl lg:text-base", attrs={"aria-label": "Close"}
 ).insert(
-    li(klass="flex flex-col text-sm", id="btn-1").insert(
-        a(
-            klass="text-blue-500 mr-2 font-bold text-3xl lg:text-base",
-            href="google.com",
-        ).text("Button 1")
+    ul(klass="list-disc list-inside").insert(
+        li(klass="flex flex-col text-sm", id="btn-1").insert(
+            a(
+                klass="text-blue-500 mr-2 font-bold text-3xl lg:text-base",
+                href="google.com",
+            ).text("Button 1")
+        ),
     ),
     label(klass="text-blue-500 mr-2 font-bold text-3xl lg:text-base").text(
         "Press this button to...do something?"
     ),
+    img(klass="w-full", alt="an image"),
 )
 
 print(button.render())
