@@ -1,7 +1,26 @@
-from collections import defaultdict
 from enum import StrEnum, auto
 import warnings
 from typing import Self
+
+
+class HREFTarget(StrEnum):
+    _blank = auto()
+    _self = auto()
+    _parent = auto()
+    _top = auto()
+
+
+class InputType(StrEnum):
+    text = auto()
+    email = auto()
+    password = auto()
+    number = auto()
+    date = auto()
+    file = auto()
+    hidden = auto()
+    checkbox = auto()
+    radio = auto()
+    button = auto()
 
 
 class SelfClosingTag:
@@ -10,15 +29,16 @@ class SelfClosingTag:
     def __init__(
         self,
         *,
-        klass: str | None = None,
+        classes: list[str] | None = None,
         attrs: dict | None = None,
         id: str | None = None,
     ) -> None:
         self._text: str = ""
         self._children: list[Self] = []
-        self._attributes: dict = defaultdict(str)
-        if klass:
-            self.klass(klass)
+        self._attributes: dict = {}
+        self._classes: list[str] = []
+        if classes:
+            self.classes(classes)
         if attrs:
             self.attrs(attrs)
         if id:
@@ -29,18 +49,18 @@ class SelfClosingTag:
         return f"<{self.name} {self._render_attributes()} />"
 
     def _render_attributes(self) -> str:
-        return " ".join(
-            [
-                f'{key}="{value.strip()}"'.strip()
-                for key, value in self._attributes.items()
-            ]
-        ).strip()
+        attributes = [
+            f'{key}="{value.strip()}"'.strip()
+            for key, value in self._attributes.items()
+        ]
+        attributes.append(f'class="{" ".join(self._classes)}"')
+        return " ".join(attributes).strip()
 
     def _render_children(self) -> str:
         return self._text + "".join([child.render() for child in self._children])
 
-    def klass(self, classes: str) -> Self:
-        self._attributes["class"] += f"{classes} "
+    def classes(self, classes: list[str]) -> Self:
+        self._classes.extend(classes)
         return self
 
     def text(self, text: str) -> Self:
@@ -71,7 +91,7 @@ class Tag(SelfClosingTag):
         *inserted: "SelfClosingTag | Tag | list[SelfClosingTag] | list[Tag]",
         append: bool = True,
     ) -> Self:
-        children = []
+        children: list["SelfClosingTag | Tag"] = []
         for insert in inserted:
             if isinstance(insert, list):
                 children.extend(insert)
@@ -92,13 +112,17 @@ class Tag(SelfClosingTag):
 class div(Tag):
     name = "div"
 
+class p(Tag):
+    name = "p"
 
-class HREFTarget(StrEnum):
-    _blank = auto()
-    _self = auto()
-    _parent = auto()
-    _top = auto()
+class body(Tag):
+    name = "body"
 
+class button(Tag):
+    name = "button"
+
+class form(Tag):
+    name = "form"
 
 class a(Tag):
     name = "a"
@@ -140,19 +164,6 @@ class label(Tag):
         return super().render()
 
 
-class InputType(StrEnum):
-    text = auto()
-    email = auto()
-    password = auto()
-    number = auto()
-    date = auto()
-    file = auto()
-    hidden = auto()
-    checkbox = auto()
-    radio = auto()
-    button = auto()
-
-
 class Input(SelfClosingTag):
     name = "input"
 
@@ -174,12 +185,12 @@ class Input(SelfClosingTag):
 
 
 def input(
-    label_text: str | None = None, label_class: str = "", **kwargs
+    label_text: str | None = None, label_classes: list[str] = [], **kwargs
 ) -> list[SelfClosingTag | Tag]:
     new_input = Input(**kwargs)
     if label_text:
         sibling_label = label(
-            klass=label_class, _for=new_input._attributes["name"]
+            classes=label_classes, _for=new_input._attributes["name"]
         ).text(label_text)
         return [new_input, sibling_label]
     else:
