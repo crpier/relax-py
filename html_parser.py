@@ -133,7 +133,7 @@ a = BeautifulSoup(html, "html.parser")
 string = StringIO()
 print(
     "from main import InputType, div, li, a, img, ul, input, button, form, "
-    "body, label, p, InputType",
+    "body, label, p",
     file=string,
 )
 print("element = ", end="", file=string)

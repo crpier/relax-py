@@ -1,23 +1,16 @@
-from yahgl_py.main import (
+from main import (
     InputType,
     div,
-    form,
-    head,
-    html,
     a,
-    link,
-    meta,
-    label,
-    script,
-    style,
-    title,
     input,
-    body,
     button,
+    form,
+    body,
+    label,
     p,
 )
 
-bod = body(classes=["bg-gray-900"]).insert(
+element = body(classes=["bg-gray-900"]).insert(
     div(classes=["flex", "items-center", "justify-center", "h-screen"]).insert(
         button(
             classes=[
@@ -160,40 +153,4 @@ bod = body(classes=["bg-gray-900"]).insert(
             )
         )
     ),
-    script(
-        """
-    function toggleModal() {
-      const modal = document.getElementById('login-modal');
-      modal.style.display = modal.style.display === 'block' ? 'none' : 'block';
-    }"""
-    ),
 )
-
-page = html(lang="en").insert(
-    head().insert(
-        title("Hello World!"),
-        meta(charset="UTF-8"),
-        meta(name="viewport", content="width=device-width, initial-scale=1.0"),
-        link(
-            href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css",
-            rel="stylesheet",
-        ),
-        style(
-            """
-    .modal {
-      display: none;
-      position: fixed;
-      z-index: 9999;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0, 0, 0, 0.5);
-    }
-              """
-        ),
-    ),
-    bod,
-)
-
-print(page.render())

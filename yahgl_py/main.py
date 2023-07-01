@@ -53,8 +53,12 @@ class SelfClosingTag:
             f'{key}="{value.strip()}"'.strip()
             for key, value in self._attributes.items()
         ]
-        attributes.append(f'class="{" ".join(self._classes)}"')
-        return " ".join(attributes).strip()
+        if self._classes:
+            attributes.append(f'class="{" ".join(self._classes)}"')
+        if attributes:
+            return " " + " ".join(attributes).strip()
+        else:
+            return ""
 
     def _render_children(self) -> str:
         return self._text + "".join([child.render() for child in self._children])
@@ -81,7 +85,7 @@ class SelfClosingTag:
 class Tag(SelfClosingTag):
     def render(self) -> str:
         return (
-            f"<{self.name} {self._render_attributes()}>"
+            f"<{self.name}{self._render_attributes()}>"
             f"{self._render_children()}"
             f"</{self.name}>"
         )
@@ -112,17 +116,22 @@ class Tag(SelfClosingTag):
 class div(Tag):
     name = "div"
 
+
 class p(Tag):
     name = "p"
+
 
 class body(Tag):
     name = "body"
 
+
 class button(Tag):
     name = "button"
 
+
 class form(Tag):
     name = "form"
+
 
 class a(Tag):
     name = "a"
@@ -208,3 +217,71 @@ class img(SelfClosingTag):
         super().__init__(**kwargs)
         self._attributes["alt"] = alt
         self._attributes["src"] = src
+
+
+class meta(SelfClosingTag):
+    name = "meta"
+
+    def __init__(
+        self,
+        *,
+        charset: str | None = None,
+        name: str | None = None,
+        content: str | None = None,
+    ) -> None:
+        if charset and (name or content):
+            raise Exception("Cannot have charset and name/content")
+        if charset:
+            super().__init__(attrs={"charset": charset})
+        else:
+            super().__init__(attrs={"name": name, "content": "content"})
+
+
+class link(SelfClosingTag):
+    name = "link"
+
+    def __init__(self, *, href: str, rel: str) -> None:
+        super().__init__(attrs={"href": href, "rel": rel})
+
+
+class title(Tag):
+    name = "title"
+
+    def __init__(self, name: str) -> None:
+        super().__init__()
+        self.text(name)
+
+
+class style(Tag):
+    name = "style"
+
+    def __init__(self, stylesheet: str) -> None:
+        super().__init__()
+        self.text(stylesheet)
+
+class script(Tag):
+    name = "script"
+
+    def __init__(self, js: str) -> None:
+        super().__init__()
+        self.text(js)
+
+class head(Tag):
+    name = "head"
+
+    def insert(self, *inserted: meta | link | title | style, **kwargs):
+        return super().insert(*inserted, **kwargs)
+
+
+class html(Tag):
+    name = "html"
+
+    def __init__(self, lang: str, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._attributes["lang"] = lang
+
+    def insert(self, *inserted: head | body, **kwargs):
+        return super().insert(*inserted, **kwargs)
+
+    def render(self) -> str:
+        return "<!DOCTYPE html>" + super().render()

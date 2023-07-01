@@ -8,7 +8,6 @@ from main import (
     body,
     label,
     p,
-    InputType,
 )
 
 element = div().insert(

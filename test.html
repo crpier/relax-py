@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+  <title>Login Form Modal</title>
+  <style>
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 9999;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+    }
+  </style>
+</head>
+
+<body class="bg-gray-900">
+  <div class="flex items-center justify-center h-screen">
+    <button
+      class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+      onclick="toggleModal()">
+      Open Login Form
+    </button>
+  </div>
+
+  <div id="login-modal" class="modal">
+    <div class="flex items-center justify-center h-screen">
+      <div class="bg-gray-800 rounded-lg shadow-md px-8 pt-6 pb-8">
+        <div class="flex justify-between items-center mb-4">
+          <div class="text-white text-4xl text-center">Login</div>
+          <button class="text-white text-2xl focus:outline-none" onclick="toggleModal()">&times;</button>
+        </div>
+        <form>
+          <div class="mb-4">
+            <label class="block text-white text-sm font-bold mb-2" for="username">Username</label>
+            <input
+              class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              id="username" type="text" placeholder="Enter your username">
+          </div>
+          <div class="mb-6">
+            <label class="block text-white text-sm font-bold mb-2" for="password">Password</label>
+            <input
+              class="shadow appearance-none border border-red-500 rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              id="password" type="password" placeholder="******************">
+            <p class="text-red-500 text-xs italic mt-2">Please choose a password.</p>
+          </div>
+          <div class="flex items-center justify-between">
+            <button
+              class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+              type="button" onclick="toggleModal()">
+              Sign In
+            </button>
+            <a class="inline-block align-baseline font-bold text-sm text-blue-500 hover:text-blue-800" href="#">
+              Forgot Password?
+            </a>
+          </div>
+        </form>
+        <p class="text-center text-white text-xs mt-4">
+          &copy;2023 Company. All rights reserved.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleModal() {
+      const modal = document.getElementById('login-modal');
+      modal.style.display = modal.style.display === 'block' ? 'none' : 'block';
+    }
+  </script>
+</body>
+
+</html
