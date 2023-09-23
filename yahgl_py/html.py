@@ -32,6 +32,7 @@ class SelfClosingTag:
         classes: list[str] | None = None,
         attrs: dict | None = None,
         id: str | None = None,
+        hyperscript: str | None = None,
     ) -> None:
         self._text: str = ""
         self._children: list[Self] = []
@@ -43,6 +44,8 @@ class SelfClosingTag:
             self.attrs(attrs)
         if id:
             self.id(id)
+        if hyperscript:
+            self._attributes["_"] = hyperscript
         self._parent: Tag | None = None
 
     def render(self) -> str:
@@ -117,6 +120,10 @@ class div(Tag):
     name = "div"
 
 
+class nav(Tag):
+    name = "nav"
+
+
 class p(Tag):
     name = "p"
 
@@ -128,9 +135,18 @@ class body(Tag):
 class button(Tag):
     name = "button"
 
+    def __init__(self, type: str | None = None, **kwargs):
+        super().__init__(**kwargs)
+        if type:
+            self._attributes["type"] = type
+
 
 class form(Tag):
     name = "form"
+
+
+class i(Tag):
+    name = "i"
 
 
 class a(Tag):
@@ -173,7 +189,7 @@ class label(Tag):
         return super().render()
 
 
-class Input(SelfClosingTag):
+class input(SelfClosingTag):
     name = "input"
 
     def __init__(
@@ -191,23 +207,6 @@ class Input(SelfClosingTag):
             self._attributes["value"] = value
         if placeholder:
             self._attributes["placeholder"] = placeholder
-
-
-def input(
-    label_text: str | None = None, label_classes: list[str] = [], **kwargs
-) -> list[SelfClosingTag | Tag]:
-    new_input = Input(**kwargs)
-    if label_text:
-        sibling_label = label(
-            classes=label_classes, _for=new_input._attributes["name"]
-        ).text(label_text)
-        return [new_input, sibling_label]
-    else:
-        if new_input._attributes["type"] in ["checkbox", "radio", "file"]:
-            warnings.warn(
-                f"Input of type {new_input._attributes['type']} should have a label"
-            )
-        return [new_input]
 
 
 class img(SelfClosingTag):
@@ -259,17 +258,28 @@ class style(Tag):
         super().__init__()
         self.text(stylesheet)
 
+
 class script(Tag):
     name = "script"
 
-    def __init__(self, js: str) -> None:
+    def __init__(
+        self, js: str | None = None, src: str | None = None, attrs: dict | None = None
+    ) -> None:
         super().__init__()
-        self.text(js)
+        if js is not None:
+            self.text(js)
+        elif src is not None:
+            self._attributes["src"] = src
+        else:
+            raise Exception("script element must have js or src")
+        if attrs is not None:
+            self._attributes.update(attrs)
+
 
 class head(Tag):
     name = "head"
 
-    def insert(self, *inserted: meta | link | title | style, **kwargs):
+    def insert(self, *inserted: meta | link | title | style | script, **kwargs):
         return super().insert(*inserted, **kwargs)
 
 
