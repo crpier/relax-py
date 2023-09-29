@@ -1,26 +1,27 @@
 from enum import StrEnum, auto
 import warnings
-from typing import Self
+from typing import Callable, Literal, Self
 
 
-class HREFTarget(StrEnum):
-    _blank = auto()
-    _self = auto()
-    _parent = auto()
-    _top = auto()
+HREFTarget = Literal["_blank"] | Literal["_self"] | Literal["_parent"] | Literal["_top"]
 
 
-class InputType(StrEnum):
-    text = auto()
-    email = auto()
-    password = auto()
-    number = auto()
-    date = auto()
-    file = auto()
-    hidden = auto()
-    checkbox = auto()
-    radio = auto()
-    button = auto()
+InputType = (
+    Literal["text"]
+    | Literal["email"]
+    | Literal["password"]
+    | Literal["number"]
+    | Literal["date"]
+    | Literal["file"]
+    | Literal["hidden"]
+    | Literal["checkbox"]
+    | Literal["radio"]
+    | Literal["button"]
+)
+
+ButtonType = Literal["button"] | Literal["submit"] | Literal["reset"]
+
+HTMXRequestType = Literal["get", "post", "put", "delete"]
 
 
 class SelfClosingTag:
@@ -84,6 +85,72 @@ class SelfClosingTag:
         self._attributes["id"] = value
         return self
 
+    def _htmx(
+        self,
+        request_type: HTMXRequestType,
+        target: str,
+        hx_encoding: Literal["multipart/form-data"] | None = None,
+        hx_target: str | Self | None = None,
+        hx_swap: Literal["innerHTML"]
+        | Literal["outerHTML"]
+        | Literal["beforebegin"]
+        | Literal["afterbegin"]
+        | Literal["beforeend"]
+        | Literal["afterend"]
+        | Literal["delete"]
+        | Literal["none"]
+        | None = None,
+    ) -> Self:
+        self._attributes["hx-" + request_type] = target
+        if hx_encoding:
+            self._attributes["hx-encoding"] = hx_encoding
+        if isinstance(hx_target, SelfClosingTag):
+            try:
+                self._attributes["hx-target"] = hx_target._attributes["id"]
+            except KeyError:
+                raise Exception(
+                    f"Target element {hx_target.__class__.__name__} must have an id attribute"
+                )
+        elif isinstance(hx_target, str):
+            self._attributes["hx-target"] = hx_target
+        if hx_swap:
+            self._attributes["hx-swap"] = hx_swap
+        return self
+
+    def hx_get(
+        self,
+        target: str,
+        hx_encoding: Literal["multipart/form-data"] | None = None,
+        hx_target: str | Self | None = None,
+        hx_swap: Literal["innerHTML"]
+        | Literal["outerHTML"]
+        | Literal["beforebegin"]
+        | Literal["afterbegin"]
+        | Literal["beforeend"]
+        | Literal["afterend"]
+        | Literal["delete"]
+        | Literal["none"]
+        | None = None,
+    ) -> Self:
+        return self._htmx("get", target, hx_encoding, hx_target, hx_swap)
+
+    def hx_post(
+        self,
+        target: str,
+        hx_encoding: Literal["multipart/form-data"] | None = None,
+        hx_target: str | Self | None = None,
+        hx_swap: Literal["innerHTML"]
+        | Literal["outerHTML"]
+        | Literal["beforebegin"]
+        | Literal["afterbegin"]
+        | Literal["beforeend"]
+        | Literal["afterend"]
+        | Literal["delete"]
+        | Literal["none"]
+        | None = None,
+    ) -> Self:
+        return self._htmx("post", target, hx_encoding, hx_target, hx_swap)
+
 
 class Tag(SelfClosingTag):
     def render(self) -> str:
@@ -127,6 +194,8 @@ class nav(Tag):
 class p(Tag):
     name = "p"
 
+class span(Tag):
+    name = "p"
 
 class body(Tag):
     name = "body"
@@ -135,7 +204,7 @@ class body(Tag):
 class button(Tag):
     name = "button"
 
-    def __init__(self, type: str | None = None, **kwargs):
+    def __init__(self, type: ButtonType, **kwargs):
         super().__init__(**kwargs)
         if type:
             self._attributes["type"] = type
@@ -188,6 +257,20 @@ class label(Tag):
                 warnings.warn(f'"{self.name}" element should have a sibling "input"')
         return super().render()
 
+# TODO:
+#class
+#x-show
+#fill
+#stroke-linecap
+#stroke-linejoin
+#stroke-width
+#viewBox
+#stroke
+class svg(Tag):
+    name = "svg"
+
+class path(Tag):
+    name = "path"
 
 class input(SelfClosingTag):
     name = "input"
@@ -202,7 +285,7 @@ class input(SelfClosingTag):
     ) -> None:
         super().__init__(**kwargs)
         self._attributes["name"] = name
-        self._attributes["type"] = type.value
+        self._attributes["type"] = type
         if value:
             self._attributes["value"] = value
         if placeholder:
@@ -212,7 +295,20 @@ class input(SelfClosingTag):
 class img(SelfClosingTag):
     name = "img"
 
-    def __init__(self, src: str, alt: str, **kwargs) -> None:
+    def __init__(
+        self,
+        src: str,
+        alt: str,
+        classes: list[str] | None = None,
+        attrs: dict | None = None,
+        id: str | None = None,
+        hyperscript: str | None = None,
+        **kwargs,
+    ) -> None:
+        kwargs["classes"] = classes
+        kwargs["attrs"] = attrs
+        kwargs["id"] = id
+        kwargs["hyperscript"] = hyperscript
         super().__init__(**kwargs)
         self._attributes["alt"] = alt
         self._attributes["src"] = src
