@@ -54,7 +54,7 @@ class SelfClosingTag:
 
     def _render_attributes(self) -> str:
         attributes = [
-            f'{key}="{value.strip()}"'.strip()
+            f'{key}="{str(value).strip()}"'.strip()
             for key, value in self._attributes.items()
         ]
         if self._classes:
@@ -100,6 +100,7 @@ class SelfClosingTag:
         | Literal["delete"]
         | Literal["none"]
         | None = None,
+        **kwargs,
     ) -> Self:
         self._attributes["hx-" + request_type] = target
         if hx_encoding:
@@ -115,6 +116,9 @@ class SelfClosingTag:
             self._attributes["hx-target"] = hx_target
         if hx_swap:
             self._attributes["hx-swap"] = hx_swap
+        for key, value in kwargs.items():
+            key = key.replace("_", "-")
+            self._attributes[key] = value
         return self
 
     def hx_get(
@@ -131,8 +135,9 @@ class SelfClosingTag:
         | Literal["delete"]
         | Literal["none"]
         | None = None,
+        **kwargs: str,
     ) -> Self:
-        return self._htmx("get", target, hx_encoding, hx_target, hx_swap)
+        return self._htmx("get", target, hx_encoding, hx_target, hx_swap, **kwargs)
 
     def hx_post(
         self,
@@ -148,9 +153,45 @@ class SelfClosingTag:
         | Literal["delete"]
         | Literal["none"]
         | None = None,
+        **kwargs: str,
     ) -> Self:
-        return self._htmx("post", target, hx_encoding, hx_target, hx_swap)
+        return self._htmx("post", target, hx_encoding, hx_target, hx_swap, **kwargs)
 
+    def hx_put(
+        self,
+        target: str,
+        hx_encoding: Literal["multipart/form-data"] | None = None,
+        hx_target: str | Self | None = None,
+        hx_swap: Literal["innerHTML"]
+        | Literal["outerHTML"]
+        | Literal["beforebegin"]
+        | Literal["afterbegin"]
+        | Literal["beforeend"]
+        | Literal["afterend"]
+        | Literal["delete"]
+        | Literal["none"]
+        | None = None,
+        **kwargs: str,
+    ) -> Self:
+        return self._htmx("put", target, hx_encoding, hx_target, hx_swap, **kwargs)
+
+    def hx_delete(
+        self,
+        target: str,
+        hx_encoding: Literal["multipart/form-data"] | None = None,
+        hx_target: str | Self | None = None,
+        hx_swap: Literal["innerHTML"]
+        | Literal["outerHTML"]
+        | Literal["beforebegin"]
+        | Literal["afterbegin"]
+        | Literal["beforeend"]
+        | Literal["afterend"]
+        | Literal["delete"]
+        | Literal["none"]
+        | None = None,
+        **kwargs: str,
+    ) -> Self:
+        return self._htmx("delete", target, hx_encoding, hx_target, hx_swap, **kwargs)
 
 class Tag(SelfClosingTag):
     def render(self) -> str:
@@ -162,14 +203,14 @@ class Tag(SelfClosingTag):
 
     def insert(
         self,
-        *inserted: "SelfClosingTag | Tag | list[SelfClosingTag] | list[Tag]",
+        *inserted: "SelfClosingTag | Tag | list[SelfClosingTag] | list[Tag] | None",
         append: bool = True,
     ) -> Self:
         children: list["SelfClosingTag | Tag"] = []
         for insert in inserted:
             if isinstance(insert, list):
                 children.extend(insert)
-            else:
+            elif insert:
                 children.append(insert)
 
         for child in children:
@@ -187,6 +228,14 @@ class div(Tag):
     name = "div"
 
 
+class main(Tag):
+    name = "main"
+
+
+class progress(Tag):
+    name = "progress"
+
+
 class nav(Tag):
     name = "nav"
 
@@ -194,8 +243,10 @@ class nav(Tag):
 class p(Tag):
     name = "p"
 
+
 class span(Tag):
     name = "p"
+
 
 class body(Tag):
     name = "body"
@@ -204,10 +255,12 @@ class body(Tag):
 class button(Tag):
     name = "button"
 
-    def __init__(self, type: ButtonType, **kwargs):
+    def __init__(self, type: ButtonType | None = None, **kwargs):
         super().__init__(**kwargs)
         if type:
             self._attributes["type"] = type
+        else:
+            self._attributes["type"] = "button"
 
 
 class form(Tag):
@@ -240,7 +293,7 @@ class li(Tag):
 class ul(Tag):
     name = "ul"
 
-    def insert(self, *children: li, **kwargs):
+    def insert(self, *children: li | list[li], **kwargs):
         return super().insert(*children, **kwargs)
 
 
@@ -257,20 +310,39 @@ class label(Tag):
                 warnings.warn(f'"{self.name}" element should have a sibling "input"')
         return super().render()
 
+
 # TODO:
-#class
-#x-show
-#fill
-#stroke-linecap
-#stroke-linejoin
-#stroke-width
-#viewBox
-#stroke
+# class
+# x-show
+# fill
+# stroke-linecap
+# stroke-linejoin
+# stroke-width
+# viewBox
+# stroke
 class svg(Tag):
     name = "svg"
 
+
 class path(Tag):
     name = "path"
+
+
+class select(Tag):
+    name = "select"
+
+    def __init__(self, name: str, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._attributes["name"] = name
+
+
+class option(Tag):
+    name = "option"
+
+    def __init__(self, value: str, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._attributes["value"] = value
+
 
 class input(SelfClosingTag):
     name = "input"
@@ -314,6 +386,10 @@ class img(SelfClosingTag):
         self._attributes["src"] = src
 
 
+class textarea(Tag):
+    name = "textarea"
+
+
 class meta(SelfClosingTag):
     name = "meta"
 
@@ -329,7 +405,7 @@ class meta(SelfClosingTag):
         if charset:
             super().__init__(attrs={"charset": charset})
         else:
-            super().__init__(attrs={"name": name, "content": "content"})
+            super().__init__(attrs={"name": name, "content": content})
 
 
 class link(SelfClosingTag):

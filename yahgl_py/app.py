@@ -83,6 +83,12 @@ class App(Starlette):
     def post(self, endpoint: str, auth_scopes: list[AuthScope] = []):
         return self.path_function("POST", endpoint, auth_scopes)
 
+    def put(self, endpoint: str, auth_scopes: list[AuthScope] = []):
+        return self.path_function("PUT", endpoint, auth_scopes)
+
+    def delete(self, endpoint: str, auth_scopes: list[AuthScope] = []):
+        return self.path_function("DELETE", endpoint, auth_scopes)
+
     # TODO: method should be enum maybe?
     def path_function(
         self, method: str, endpoint: str, auth_scopes: list[AuthScope] = []
@@ -104,8 +110,15 @@ class App(Starlette):
                             request.headers.get("HX-Request", False) == "true"
                         )
                     # TODO: param validation
-                    if get_origin(param.annotation) is Annotated:
-                        if get_args(param.annotation)[1] == "query_param":
+                    if (
+                        get_origin(param.annotation) is Annotated
+                        or get_origin(get_args(param.annotation)[0]) is Annotated
+                    ):
+                        if (
+                            get_args(param.annotation)[1] == "query_param"
+                            or get_args(get_args(param.annotation)[0])[1]
+                            == "query_param"
+                        ):
                             params[param_name] = request.query_params.get(
                                 param_name, param.default
                             )
@@ -113,7 +126,11 @@ class App(Starlette):
                                 raise TypeError(
                                     f"function {func.__name__} is missing required parameter {param_name}"
                                 )
-                        if get_args(param.annotation)[1] == "path_param":
+                        if (
+                            get_args(param.annotation)[1] == "path_param"
+                            or get_args(get_args(param.annotation)[0])[1]
+                            == "path_param"
+                        ):
                             params[param_name] = request.path_params.get(
                                 param_name, param.default
                             )
