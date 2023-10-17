@@ -114,18 +114,21 @@ class App(Starlette):
                         get_origin(param.annotation) is Annotated
                         or get_origin(get_args(param.annotation)[0]) is Annotated
                     ):
-                        if (
-                            get_args(param.annotation)[1] == "query_param"
-                            or get_args(get_args(param.annotation)[0])[1]
-                            == "query_param"
-                        ):
-                            params[param_name] = request.query_params.get(
-                                param_name, param.default
-                            )
-                            if params[param_name] is inspect._empty:
-                                raise TypeError(
-                                    f"function {func.__name__} is missing required parameter {param_name}"
+                        try:
+                            if (
+                                get_args(param.annotation)[1] == "query_param"
+                                or get_args(get_args(param.annotation)[0])[1]
+                                == "query_param"
+                            ):
+                                params[param_name] = request.query_params.get(
+                                    param_name, param.default
                                 )
+                                if params[param_name] is inspect._empty:
+                                    raise TypeError(
+                                        f"function {func.__name__} is missing required parameter {param_name}"
+                                    )
+                        except IndexError:
+                            pass
                         if (
                             get_args(param.annotation)[1] == "path_param"
                             or get_args(get_args(param.annotation)[0])[1]

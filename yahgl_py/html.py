@@ -245,7 +245,7 @@ class p(Tag):
 
 
 class span(Tag):
-    name = "p"
+    name = "span"
 
 
 class body(Tag):
