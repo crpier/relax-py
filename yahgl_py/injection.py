@@ -79,9 +79,28 @@ def injectable(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
                     msg = f"Missing dependency for {name}: {sig.annotation} in {func.__name__}"
                     raise MissingDependencyError(msg)
         return await func(*args, **kwargs)
-
     return inner
 
+def injectable_sync(func: Callable[P, T]) -> Callable[P, T]:
+    def inner(*args: P.args, **kwargs: P.kwargs) -> T:
+        for name, sig in signature(func).parameters.items():
+            if sig.default is Injected:
+                if sig.kind is not _ParameterKind.KEYWORD_ONLY:
+                    msg = (
+                        f"Injected parameter {name} in "
+                        f"{func.__name__} must be keyword-only"
+                    )
+                    raise IncorrectInjectableSignatureError(msg)
+                if kwargs.get(name) is not None:
+                    pass
+                elif sig.annotation in _INJECTS:
+                    kwargs.update({name: _INJECTS[sig.annotation]})
+                else:
+                    msg = f"Missing dependency for {name}: {sig.annotation} in {func.__name__}"
+                    raise MissingDependencyError(msg)
+        return func(*args, **kwargs)
+
+    return inner
 
 def add_injectable(annotation: Any, injectable: Any) -> None:
     if annotation in _INJECTS:
