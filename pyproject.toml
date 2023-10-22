@@ -4,6 +4,9 @@ version = "0.1.0"
 description = ""
 authors = ["crpier <crpier42@gmail.com>"]
 readme = "README.md"
+packages = [
+  {include = "relax"}
+]
 
 [tool.poetry.dependencies]
 python = "^3.11"
