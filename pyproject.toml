@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "yahgl-py"
+name = "relax-py"
 version = "0.1.0"
 description = ""
 authors = ["crpier <crpier42@gmail.com>"]

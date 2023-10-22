@@ -132,7 +132,7 @@ a = BeautifulSoup(html, "html.parser")
 
 string = StringIO()
 print(
-    "from main import InputType, div, li, a, img, ul, input, button, form, "
+    "from html import InputType, div, li, a, img, ul, input, button, form, "
     "body, label, p",
     file=string,
 )
