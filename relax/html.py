@@ -266,6 +266,19 @@ class button(Tag):
 class form(Tag):
     name = "form"
 
+    def __init__(
+        self,
+        *,
+        classes: list[str] | None = None,
+        attrs: dict | None = None,
+        id: str | None = None,
+        hyperscript: str | None = None,
+        action: str | None = None,
+    ) -> None:
+        super().__init__(classes=classes, attrs=attrs, id=id, hyperscript=hyperscript)
+        if action is not None:
+            self._attributes["action"] = action
+
 
 class i(Tag):
     name = "i"
