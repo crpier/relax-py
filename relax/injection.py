@@ -24,18 +24,8 @@ weird
 ```
 """
 from collections.abc import Callable
-from functools import wraps
-from inspect import _ParameterKind, get_annotations, signature, iscoroutinefunction
-from typing import (
-    Annotated,
-    Any,
-    Awaitable,
-    get_args,
-    get_origin,
-    ParamSpec,
-    TypeVar,
-    Coroutine,
-)
+from inspect import _ParameterKind, signature
+from typing import Awaitable, Hashable, ParamSpec, TypeVar
 
 
 class MissingDependencyError(Exception):
@@ -50,7 +40,7 @@ class DoubleInjectionError(Exception):
     ...
 
 
-_INJECTS: dict[str, Any] = {}
+_INJECTS: dict[Hashable, object] = {}
 
 
 class Injected:
@@ -76,10 +66,15 @@ def injectable(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
                 elif sig.annotation in _INJECTS:
                     kwargs.update({name: _INJECTS[sig.annotation]})
                 else:
-                    msg = f"Missing dependency for {name}: {sig.annotation} in {func.__name__}"
+                    msg = (
+                        "Missing dependency for "
+                        f"{name}: {sig.annotation} in {func.__name__}"
+                    )
                     raise MissingDependencyError(msg)
         return await func(*args, **kwargs)
+
     return inner
+
 
 def injectable_sync(func: Callable[P, T]) -> Callable[P, T]:
     def inner(*args: P.args, **kwargs: P.kwargs) -> T:
@@ -96,13 +91,17 @@ def injectable_sync(func: Callable[P, T]) -> Callable[P, T]:
                 elif sig.annotation in _INJECTS:
                     kwargs.update({name: _INJECTS[sig.annotation]})
                 else:
-                    msg = f"Missing dependency for {name}: {sig.annotation} in {func.__name__}"
+                    msg = (
+                        "Missing dependency for "
+                        f"{name}: {sig.annotation} in {func.__name__}"
+                    )
                     raise MissingDependencyError(msg)
         return func(*args, **kwargs)
 
     return inner
 
-def add_injectable(annotation: Any, injectable: Any) -> None:
+
+def add_injectable(annotation: Hashable, injectable: object) -> None:
     if annotation in _INJECTS:
         msg = f"Injectable {annotation} already added"
         raise DoubleInjectionError(msg)

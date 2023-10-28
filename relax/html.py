@@ -1,7 +1,6 @@
-from enum import StrEnum, auto
 import warnings
+from enum import StrEnum, auto
 from typing import Callable, Literal, Self
-
 
 HREFTarget = Literal["_blank"] | Literal["_self"] | Literal["_parent"] | Literal["_top"]
 
@@ -192,6 +191,7 @@ class SelfClosingTag:
         **kwargs: str,
     ) -> Self:
         return self._htmx("delete", target, hx_encoding, hx_target, hx_swap, **kwargs)
+
 
 class Tag(SelfClosingTag):
     def render(self) -> str:

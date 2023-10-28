@@ -1,4 +1,4 @@
-from typing import Any, ParamSpec, TypeVar, Awaitable, Callable
+from typing import Any, Awaitable, Callable, ParamSpec, TypeVar
 
 P = ParamSpec("P")
 T = TypeVar("T")

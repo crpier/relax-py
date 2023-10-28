@@ -1,32 +1,29 @@
+import inspect
 from enum import StrEnum, auto
 from functools import wraps
-import inspect
-from typing_extensions import ParamSpec
+from inspect import _ParameterKind, signature
 from typing import (
     Annotated,
-    Awaitable,
     Any,
+    Awaitable,
     Callable,
+    Concatenate,
+    Final,
     Generic,
-    Literal,
-    TypeVar,
-    get_origin,
-    get_args,
+    Protocol,
+    TypedDict,
     TypeVar,
     Union,
-    Concatenate,
-    overload,
-    Protocol,
+    get_args,
+    get_origin,
 )
-from inspect import _ParameterKind, signature
-from starlette.applications import Starlette
 
-
-from starlette.authentication import requires
-from starlette.routing import Route
 import starlette.requests
 import starlette.types
-
+from starlette.applications import Starlette
+from starlette.authentication import requires
+from starlette.routing import Route
+from typing_extensions import ParamSpec
 
 QueryStr = Annotated[str, "query_param"]
 QueryInt = Annotated[int, "query_param"]
@@ -43,18 +40,8 @@ class AuthScope(StrEnum):
     Authenticated = auto()
 
 
-class Scope(starlette.types.Scope):
-    @overload
-    def __getitem__(self, key: Literal["from_htmx"]) -> bool:
-        ...
-
-    # TODO: maybe user type is a TypeVar?
-    @overload
-    def __getitem__(self, key: Literal["user"]) -> str | None:
-        ...
-
-    def __getitem__(self, key: str) -> Any:
-        return self.get(key)
+class Scope(TypedDict):
+    from_htmx: bool
 
 
 class Request(starlette.requests.Request, Generic[T]):
@@ -70,29 +57,36 @@ class UserType(Protocol):
 
 class App(Starlette):
     def url_wrapper(
-        self, func: Callable[Concatenate[Request, P], Any]
+        self,
+        func: Callable[Concatenate[Request, P], Any],
     ) -> Callable[P, str]:
         def inner(*_: P.args, **kwargs: P.kwargs) -> str:
             return self.url_path_for(func.__name__, **kwargs)
 
         return inner
 
-    def get(self, endpoint: str, auth_scopes: list[AuthScope] = []):
+    def get(self, endpoint: str, auth_scopes: list[AuthScope] | None = None):
         return self.path_function("GET", endpoint, auth_scopes)
 
-    def post(self, endpoint: str, auth_scopes: list[AuthScope] = []):
+    def post(self, endpoint: str, auth_scopes: list[AuthScope] | None = None):
         return self.path_function("POST", endpoint, auth_scopes)
 
-    def put(self, endpoint: str, auth_scopes: list[AuthScope] = []):
+    def put(self, endpoint: str, auth_scopes: list[AuthScope] | None = None):
         return self.path_function("PUT", endpoint, auth_scopes)
 
-    def delete(self, endpoint: str, auth_scopes: list[AuthScope] = []):
+    def delete(self, endpoint: str, auth_scopes: list[AuthScope] | None = None):
         return self.path_function("DELETE", endpoint, auth_scopes)
 
     # TODO: method should be enum maybe?
     def path_function(
-        self, method: str, endpoint: str, auth_scopes: list[AuthScope] = []
-    ):
+        self,
+        method: str,
+        endpoint: str,
+        auth_scopes: list[AuthScope] | None = None,
+    ) -> Callable[P, Awaitable[T]]:
+        if auth_scopes is None:
+            auth_scopes = []
+
         # TODO: force functions to take a Request arg
         def decorator(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
             @wraps(func)
@@ -135,7 +129,8 @@ class App(Starlette):
                             == "path_param"
                         ):
                             params[param_name] = request.path_params.get(
-                                param_name, param.default
+                                param_name,
+                                param.default,
                             )
                             if params[param_name] is inspect._empty:
                                 raise TypeError(
