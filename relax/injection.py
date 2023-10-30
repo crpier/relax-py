@@ -47,12 +47,12 @@ class Injected:
     ...
 
 
-P = ParamSpec("P")
-T = TypeVar("T")
+_P = ParamSpec("_P")
+_T = TypeVar("_T")
 
 
-def injectable(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
-    async def inner(*args: P.args, **kwargs: P.kwargs) -> T:
+def injectable(func: Callable[_P, Awaitable[_T]]) -> Callable[_P, Awaitable[_T]]:
+    async def inner(*args: _P.args, **kwargs: _P.kwargs) -> _T:
         for name, sig in signature(func).parameters.items():
             if sig.default is Injected:
                 if sig.kind is not _ParameterKind.KEYWORD_ONLY:
@@ -76,8 +76,8 @@ def injectable(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
     return inner
 
 
-def injectable_sync(func: Callable[P, T]) -> Callable[P, T]:
-    def inner(*args: P.args, **kwargs: P.kwargs) -> T:
+def injectable_sync(func: Callable[_P, _T]) -> Callable[_P, _T]:
+    def inner(*args: _P.args, **kwargs: _P.kwargs) -> _T:
         for name, sig in signature(func).parameters.items():
             if sig.default is Injected:
                 if sig.kind is not _ParameterKind.KEYWORD_ONLY:

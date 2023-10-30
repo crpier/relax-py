@@ -28,9 +28,20 @@ build-backend = "poetry.core.masonry.api"
 [tool.ruff]
 extend-select = ["F", "E", "W", "C90", "I", "N", "UP", "YTT", "ANN", "S", "BLE", "FBT", "B", "A", "COM", "C4", "DTZ", "T10", "EM", "EXE", "ISC", "ICN", "G", "INP", "PIE", "T20", "PYI", "PT", "Q", "RSE", "RET", "SLF", "SIM", "TID", "TCH", "ARG", "PTH", "ERA", "PD", "PGH", "PL", "TRY", "RUF"]
 ignore = [
-"ANN101", # No need for type annotation on `self`
+"A001", # allowing shading python builtin
+"A002", # let me shadow the "id" function
 "A003", # Allow me to use the "id" field
+"ANN101", # No need for type annotation on `self`
+"ANN401", # allow Any's
+# TODO: refactor some time
+"C901", # let me have a complex function
 "I001", # Let black/isort handle unsorted imports
+"ISC001",
+"N801", # allow classes to not have CamelCase name
+"PGH003", # let me use # type: ignore
+"PLR0913", # let me have lots of params in func signature
+# TODO: check if that can be ignored in file only
+"SLF001", # allow using private member
 ]
 
 [tool.isort]

@@ -8,7 +8,6 @@ from typing import (
     Awaitable,
     Callable,
     Concatenate,
-    Final,
     Generic,
     Protocol,
     TypedDict,
@@ -45,7 +44,7 @@ class Scope(TypedDict):
 
 
 class Request(starlette.requests.Request, Generic[T]):
-    scope: Scope
+    scope: Scope  # type: ignore[assignment]
     user: T
 
 
@@ -65,16 +64,32 @@ class App(Starlette):
 
         return inner
 
-    def get(self, endpoint: str, auth_scopes: list[AuthScope] | None = None):
+    def get(
+        self,
+        endpoint: str,
+        auth_scopes: list[AuthScope] | None = None,
+    ) -> Callable[P, Awaitable[Any]]:
         return self.path_function("GET", endpoint, auth_scopes)
 
-    def post(self, endpoint: str, auth_scopes: list[AuthScope] | None = None):
+    def post(
+        self,
+        endpoint: str,
+        auth_scopes: list[AuthScope] | None = None,
+    ) -> Callable[P, Awaitable[Any]]:
         return self.path_function("POST", endpoint, auth_scopes)
 
-    def put(self, endpoint: str, auth_scopes: list[AuthScope] | None = None):
+    def put(
+        self,
+        endpoint: str,
+        auth_scopes: list[AuthScope] | None = None,
+    ) -> Callable[P, Awaitable[Any]]:
         return self.path_function("PUT", endpoint, auth_scopes)
 
-    def delete(self, endpoint: str, auth_scopes: list[AuthScope] | None = None):
+    def delete(
+        self,
+        endpoint: str,
+        auth_scopes: list[AuthScope] | None = None,
+    ) -> Callable[P, Awaitable[Any]]:
         return self.path_function("DELETE", endpoint, auth_scopes)
 
     # TODO: method should be enum maybe?
@@ -83,15 +98,17 @@ class App(Starlette):
         method: str,
         endpoint: str,
         auth_scopes: list[AuthScope] | None = None,
-    ) -> Callable[P, Awaitable[T]]:
+    ) -> Callable[P, Awaitable[Any]]:
         if auth_scopes is None:
             auth_scopes = []
 
         # TODO: force functions to take a Request arg
-        def decorator(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
+        def decorator(
+            func: Callable[Concatenate[Request, P], Awaitable[T]],
+        ) -> Callable[P, Awaitable[T]]:
             @wraps(func)
             @requires(auth_scopes)
-            async def inner(request: starlette.requests.Request):
+            async def inner(request: starlette.requests.Request) -> Awaitable[T]:
                 has_request = False
                 params = {}
                 for param_name, param in signature(func).parameters.items():
@@ -115,12 +132,15 @@ class App(Starlette):
                                 == "query_param"
                             ):
                                 params[param_name] = request.query_params.get(
-                                    param_name, param.default
+                                    param_name,
+                                    param.default,
                                 )
                                 if params[param_name] is inspect._empty:
-                                    raise TypeError(
-                                        f"function {func.__name__} is missing required parameter {param_name}"
+                                    msg = (
+                                        f"function {func.__name__} is missing "
+                                        f"required parameter {param_name}"
                                     )
+                                    raise TypeError(msg)
                         except IndexError:
                             pass
                         if (
@@ -133,13 +153,14 @@ class App(Starlette):
                                 param.default,
                             )
                             if params[param_name] is inspect._empty:
-                                raise TypeError(
-                                    f"function {func.__name__} is missing required parameter {param_name}"
+                                msg = (
+                                    f"function {func.__name__} is missing "
+                                    f"required parameter {param_name}"
                                 )
+                                raise TypeError(msg)
                 if has_request:
-                    return await func(request, **params)
-                else:
-                    return await func(**params)
+                    return func(request, **params)  # type: ignore
+                return func(**params)  # type: ignore
 
             # TODO: maybe make the name file + fn_name?
             # TODO: also, error out when finding a duplicate name
@@ -147,6 +168,6 @@ class App(Starlette):
                 Route(endpoint, inner, methods=[method], name=func.__name__),
             )
 
-            return inner
+            return inner  # type: ignore
 
-        return decorator
+        return decorator  # type: ignore
