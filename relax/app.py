@@ -64,62 +64,27 @@ class App(Starlette):
 
         return inner
 
-    def get(
-        self,
-        endpoint: str,
-        auth_scopes: list[AuthScope] | None = None,
-    ) -> Callable[P, Awaitable[Any]]:
-        return self.path_function("GET", endpoint, auth_scopes)
-
-    def post(
-        self,
-        endpoint: str,
-        auth_scopes: list[AuthScope] | None = None,
-    ) -> Callable[P, Awaitable[Any]]:
-        return self.path_function("POST", endpoint, auth_scopes)
-
-    def put(
-        self,
-        endpoint: str,
-        auth_scopes: list[AuthScope] | None = None,
-    ) -> Callable[P, Awaitable[Any]]:
-        return self.path_function("PUT", endpoint, auth_scopes)
-
-    def delete(
-        self,
-        endpoint: str,
-        auth_scopes: list[AuthScope] | None = None,
-    ) -> Callable[P, Awaitable[Any]]:
-        return self.path_function("DELETE", endpoint, auth_scopes)
-
     # TODO: method should be enum maybe?
     def path_function(
         self,
         method: str,
         endpoint: str,
         auth_scopes: list[AuthScope] | None = None,
-    ) -> Callable[P, Awaitable[Any]]:
+    ):
         if auth_scopes is None:
             auth_scopes = []
 
-        # TODO: force functions to take a Request arg
         def decorator(
-            func: Callable[Concatenate[Request, P], Awaitable[T]],
-        ) -> Callable[P, Awaitable[T]]:
+            func: Callable[Concatenate[Request, ...], Any],
+        ):
             @wraps(func)
             @requires(auth_scopes)
-            async def inner(request: starlette.requests.Request) -> Awaitable[T]:
-                has_request = False
+            async def inner(request: Request):
                 params = {}
+                request.scope["from_htmx"] = (
+                    request.headers.get("HX-Request", False) == "true"
+                )
                 for param_name, param in signature(func).parameters.items():
-                    if (
-                        param.annotation is Request
-                        or get_origin(param.annotation) is Request
-                    ) and param.kind is _ParameterKind.POSITIONAL_OR_KEYWORD:
-                        has_request = True
-                        request.scope["from_htmx"] = (
-                            request.headers.get("HX-Request", False) == "true"
-                        )
                     # TODO: param validation
                     if (
                         get_origin(param.annotation) is Annotated
@@ -158,9 +123,7 @@ class App(Starlette):
                                     f"required parameter {param_name}"
                                 )
                                 raise TypeError(msg)
-                if has_request:
-                    return func(request, **params)  # type: ignore
-                return func(**params)  # type: ignore
+                return await func(request, **params)
 
             # TODO: maybe make the name file + fn_name?
             # TODO: also, error out when finding a duplicate name
@@ -168,6 +131,6 @@ class App(Starlette):
                 Route(endpoint, inner, methods=[method], name=func.__name__),
             )
 
-            return inner  # type: ignore
+            return inner
 
-        return decorator  # type: ignore
+        return decorator

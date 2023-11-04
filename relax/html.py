@@ -217,7 +217,7 @@ class Tag(SelfClosingTag):
 
     def insert(
         self,
-        *inserted: "Tag | SelfClosingTag | list[Tag | SelfClosingTag]" | None,
+        *inserted: "Tag | SelfClosingTag | list[Tag | SelfClosingTag] | None",
         append: bool = True,
     ) -> Self:
         children: list[Tag | SelfClosingTag] = []
