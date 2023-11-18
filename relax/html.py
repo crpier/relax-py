@@ -454,6 +454,29 @@ class img(SelfClosingTag):
         self._attributes["src"] = src
 
 
+class video(SelfClosingTag):
+    name = "video"
+
+    def __init__(
+        self,
+        src: str,
+        controls: bool = False,
+        classes: list[str] | None = None,
+        attrs: dict | None = None,
+        id: str | None = None,
+        hyperscript: str | None = None,
+        **kwargs,
+    ) -> None:
+        kwargs["classes"] = classes
+        kwargs["attrs"] = attrs
+        kwargs["id"] = id
+        kwargs["hyperscript"] = hyperscript
+        super().__init__(**kwargs)
+        self._attributes["src"] = src
+        if controls:
+            self._attributes["controls"] = True
+
+
 class textarea(Tag):
     name = "textarea"
 
