@@ -1,4 +1,5 @@
 import warnings
+from html import escape
 from typing import Literal, Self
 
 HREFTarget = Literal["_blank", "_self", "_parent", "_top"]
@@ -55,17 +56,21 @@ class SelfClosingTag:
 
     def _render_attributes(self) -> str:
         attributes = [
-            f'{key}="{str(value).strip()}"'.strip()
+            f'{escape(key)}="{escape(str(value).strip())}"'.strip()
             for key, value in self._attributes.items()
         ]
         if self._classes:
-            attributes.append(f'class="{" ".join(self._classes)}"')
+            attributes.append(
+                f'class="{" ".join([escape(klass) for klass in self._classes])}"'
+            )
         if attributes:
             return " " + " ".join(attributes).strip()
         return ""
 
     def _render_children(self) -> str:
-        return self._text + "".join([child.render() for child in self._children])
+        return escape(self._text) + "".join(
+            [child.render() for child in self._children]
+        )
 
     def classes(self, classes: list[str]) -> Self:
         self._classes.extend(classes)
