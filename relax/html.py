@@ -548,6 +548,13 @@ class script(Tag):
         if attrs is not None:
             self._attributes.update(attrs)
 
+    # sorry mate can't help you escape that
+    # your risk
+    def _render_children(self) -> str:
+        return self._text + "".join(
+            [child.render() for child in self._children]
+        )
+
 
 class head(Tag):
     name = "head"

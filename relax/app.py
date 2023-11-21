@@ -108,11 +108,12 @@ class App(Starlette):
                                     raise TypeError(msg)
                         except IndexError:
                             pass
-                        if (
-                            get_args(param.annotation)[1] == "path_param"
-                            or get_args(get_args(param.annotation)[0])[1]
+                        if get_args(param.annotation)[1] == "path_param" or (
+                            len(get_args(get_args(param.annotation)[0])) > 1
+                            and get_args(get_args(param.annotation)[0])[1]
                             == "path_param"
                         ):
+
                             params[param_name] = request.path_params.get(
                                 param_name,
                                 param.default,
