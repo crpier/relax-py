@@ -1,6 +1,7 @@
 import warnings
+from collections.abc import Iterable
 from html import escape
-from typing import Literal, Self
+from typing import Literal, Protocol, Self, Sequence
 
 HREFTarget = Literal["_blank", "_self", "_parent", "_top"]
 
@@ -26,7 +27,15 @@ class InvalidHTMLError(Exception):
     ...
 
 
-class SelfClosingTag:
+class Element(Protocol):
+    _parent: "Tag | None"
+    name: str
+
+    def render(self) -> str:
+        ...
+
+
+class SelfClosingTag(Element):
     name: str
 
     def __init__(
@@ -38,7 +47,6 @@ class SelfClosingTag:
         hyperscript: str | None = None,
     ) -> None:
         self._text: str = ""
-        self._children: list["SelfClosingTag | Tag"] = []
         self._attributes: dict = {}
         self._classes: list[str] = []
         if classes:
@@ -49,7 +57,7 @@ class SelfClosingTag:
             self.id(id)
         if hyperscript:
             self._attributes["_"] = hyperscript
-        self._parent: Self | Tag | None = None
+        self._parent: Tag | None = None
 
     def render(self) -> str:
         return f"<{self.name} {self._render_attributes()} />"
@@ -61,26 +69,14 @@ class SelfClosingTag:
         ]
         if self._classes:
             attributes.append(
-                f'class="{" ".join([escape(klass) for klass in self._classes])}"'
+                f'class="{" ".join([escape(klass) for klass in self._classes])}"',
             )
         if attributes:
             return " " + " ".join(attributes).strip()
         return ""
 
-    def _render_children(self) -> str:
-        return escape(self._text) + "".join(
-            [child.render() for child in self._children]
-        )
-
     def classes(self, classes: list[str]) -> Self:
         self._classes.extend(classes)
-        return self
-
-    def text(self, text: str) -> Self:
-        self._text = text
-        if self._children:
-            msg = "Cannot have text and children"
-            raise InvalidHTMLError(msg)
         return self
 
     def attrs(self, attrs: dict) -> Self:
@@ -213,6 +209,17 @@ class SelfClosingTag:
 
 
 class Tag(SelfClosingTag):
+    def __init__(
+        self,
+        *,
+        classes: list[str] | None = None,
+        attrs: dict | None = None,
+        id: str | None = None,
+        hyperscript: str | None = None,
+    ) -> None:
+        super().__init__(classes=classes, attrs=attrs, id=id, hyperscript=hyperscript)
+        self._children: list[Element] = []
+
     def render(self) -> str:
         return (
             f"<{self.name}{self._render_attributes()}>"
@@ -220,28 +227,59 @@ class Tag(SelfClosingTag):
             f"</{self.name}>"
         )
 
+    def _render_children(self) -> str:
+        return escape(self._text) + "".join(
+            [child.render() for child in self._children],
+        )
+
+    def text(self, text: str) -> Self:
+        self._text = text
+        if self._children:
+            msg = "Cannot have text and children"
+            raise InvalidHTMLError(msg)
+        return self
+
     def insert(
         self,
-        *inserted: "Tag | SelfClosingTag | list[Tag | SelfClosingTag] | None",
+        *children: Sequence[Element] | Element | None,
         append: bool = True,
     ) -> Self:
-        children: list[Tag | SelfClosingTag] = []
-        for insert in inserted:
-            if isinstance(insert, list):
-                children.extend(insert)
-            elif insert:
-                children.append(insert)
-
-        for child in children:
-            child._parent = self
         if self._text:
             msg = "Cannot have text and children"
             raise InvalidHTMLError(msg)
+
+        # since we are so lenient with what we accept
+        # sieve arguments until we get just a list of elements
+        final_list: list[Element] = []
+        for child in children:
+            if child is None:
+                continue
+            if isinstance(child, Iterable):
+                for sub_child in child:
+                    final_list.append(sub_child)
+                    sub_child._parent = self
+            else:
+                final_list.append(child)
+                child._parent = self
         if append:
-            self._children.extend(children)
+            self._children.extend(final_list)
         else:
-            self._children = children
+            self._children = final_list
         return self
+
+
+class Fragment(Tag):
+    name = "<>"
+
+    def __init__(
+        self,
+        children: Sequence[Element] | None,
+    ) -> None:
+        super().__init__()
+        self.insert(children)
+
+    def render(self) -> str:
+        return super()._render_children()
 
 
 class div(Tag):
@@ -471,15 +509,11 @@ class video(Tag):
         attrs: dict | None = None,
         id: str | None = None,
         hyperscript: str | None = None,
-        **kwargs,
     ) -> None:
-        kwargs["classes"] = classes
-        kwargs["attrs"] = attrs
-        kwargs["id"] = id
-        kwargs["hyperscript"] = hyperscript
-        super().__init__(**kwargs)
+        super().__init__(id=id, classes=classes, attrs=attrs, hyperscript=hyperscript)
         self._attributes["src"] = src
-        self._attributes["controls"] = "true"
+        if controls:
+            self._attributes["controls"] = "true"
 
 
 class textarea(Tag):
@@ -551,9 +585,7 @@ class script(Tag):
     # sorry mate can't help you escape that
     # your risk
     def _render_children(self) -> str:
-        return self._text + "".join(
-            [child.render() for child in self._children]
-        )
+        return self._text + "".join([child.render() for child in self._children])
 
 
 class head(Tag):
