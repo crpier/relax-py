@@ -1,7 +1,7 @@
 import inspect
 from enum import StrEnum, auto
 from functools import wraps
-from inspect import _ParameterKind, signature
+from inspect import Parameter, signature
 from typing import (
     Annotated,
     Any,
@@ -12,7 +12,6 @@ from typing import (
     Protocol,
     TypedDict,
     TypeVar,
-    Union,
     get_args,
     get_origin,
 )
@@ -28,8 +27,6 @@ QueryStr = Annotated[str, "query_param"]
 QueryInt = Annotated[int, "query_param"]
 PathInt = Annotated[int, "path_param"]
 PathStr = Annotated[str, "path_param"]
-
-PathPart = Union[QueryStr, QueryInt, PathInt, PathStr]
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -54,10 +51,21 @@ class UserType(Protocol):
     is_authenticated: bool
 
 
+def get_annotated(param: Parameter) -> Any:
+    if get_origin(param.annotation) is Annotated:
+        return get_args(param.annotation)
+
+    if get_origin(get_args(param.annotation)[0]) is Annotated:
+        return get_args(get_args(param.annotation)[0])
+
+    return None
+
+
 class App(Starlette):
     def url_wrapper(
         self,
-        func: Callable[Concatenate[Request, P], Any],
+        func: Callable[Concatenate[Request, P], Awaitable[Any]],
+        # TODO: str should be a urlpath instead
     ) -> Callable[P, str]:
         def inner(*_: P.args, **kwargs: P.kwargs) -> str:
             return self.url_path_for(func.__name__, **kwargs)
@@ -74,56 +82,41 @@ class App(Starlette):
         if auth_scopes is None:
             auth_scopes = []
 
-        def decorator(
-            func: Callable[Concatenate[Request, ...], Any],
-        ):
+        def decorator(func):
             @wraps(func)
             @requires(auth_scopes)
             async def inner(request: Request):
-                params = {}
+                params: dict[str, Any] = {}
                 request.scope["from_htmx"] = (
                     request.headers.get("HX-Request", False) == "true"
                 )
                 for param_name, param in signature(func).parameters.items():
-                    # TODO: param validation
-                    if (
-                        get_origin(param.annotation) is Annotated
-                        or get_origin(get_args(param.annotation)[0]) is Annotated
-                    ):
-                        try:
-                            if (
-                                get_args(param.annotation)[1] == "query_param"
-                                or get_args(get_args(param.annotation)[0])[1]
-                                == "query_param"
-                            ):
-                                params[param_name] = request.query_params.get(
-                                    param_name,
-                                    param.default,
-                                )
-                                if params[param_name] is inspect._empty:
-                                    msg = (
-                                        f"function {func.__name__} is missing "
-                                        f"required parameter {param_name}"
-                                    )
-                                    raise TypeError(msg)
-                        except IndexError:
-                            pass
-                        if get_args(param.annotation)[1] == "path_param" or (
-                            len(get_args(get_args(param.annotation)[0])) > 1
-                            and get_args(get_args(param.annotation)[0])[1]
-                            == "path_param"
-                        ):
-
-                            params[param_name] = request.path_params.get(
-                                param_name,
-                                param.default,
-                            )
-                            if params[param_name] is inspect._empty:
+                    if (args := get_annotated(param)) and args[1] == "query_param":
+                        if (
+                            param_value := request.query_params.get(param_name)
+                        ) is None:
+                            if param.default is inspect._empty:
                                 msg = (
-                                    f"function {func.__name__} is missing "
-                                    f"required parameter {param_name}"
+                                    f"parameter {param_name} from function "
+                                    f"{func.__name__} has no default value "
+                                    "and was not provided in the request"
                                 )
                                 raise TypeError(msg)
+                            params[param_name] = param.default
+                        else:
+                            params[param_name] = args[0](param_value)
+                    elif (args := get_annotated(param)) and args[1] == "path_param":
+                        if (param_value := request.path_params.get(param_name)) is None:
+                            if param.default is inspect._empty:
+                                msg = (
+                                    f"parameter {param_name} from function "
+                                    f"{func.__name__} has no default value "
+                                    "and was not provided in the request"
+                                )
+                                raise TypeError(msg)
+                            params[param_name] = param.default
+                        else:
+                            params[param_name] = args[0](param_value)
                 return await func(request, **params)
 
             # TODO: maybe make the name file + fn_name?
