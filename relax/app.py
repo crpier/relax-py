@@ -104,6 +104,8 @@ class App(Starlette):
                                 raise TypeError(msg)
                             params[param_name] = param.default
                         else:
+                            # TODO: also allow something like
+                            # \ Annotated[Path | None, "query_param"] = Path("/")
                             params[param_name] = args[0](param_value)
                     elif (args := get_annotated(param)) and args[1] == "path_param":
                         if (param_value := request.path_params.get(param_name)) is None:

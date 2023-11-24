@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "relax-py"
-version = "0.1.6"
+version = "0.1.7"
 description = ""
 authors = ["crpier <crpier42@gmail.com>"]
 readme = "README.md"
@@ -12,6 +12,7 @@ packages = [
 python = "^3.11"
 beautifulsoup4 = "^4.12.2"
 starlette = "^0.31.1"
+typing-extensions = "^4.8.0"
 
 
 [tool.poetry.group.dev.dependencies]
