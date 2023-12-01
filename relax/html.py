@@ -3,6 +3,8 @@ from collections.abc import Iterable
 from html import escape
 from typing import Literal, Protocol, Self, Sequence
 
+from starlette.datastructures import URL
+
 HREFTarget = Literal["_blank", "_self", "_parent", "_top"]
 
 InputType = Literal[
@@ -129,7 +131,7 @@ class SelfClosingTag(Element):
 
     def hx_get(
         self,
-        target: str,
+        target: str | URL,
         hx_encoding: Literal["multipart/form-data"] | None = None,
         hx_target: str | Self | None = None,
         hx_swap: Literal[
@@ -149,7 +151,7 @@ class SelfClosingTag(Element):
 
     def hx_post(
         self,
-        target: str,
+        target: str | URL,
         hx_encoding: Literal["multipart/form-data"] | None = None,
         hx_target: str | Self | None = None,
         hx_swap: Literal[
@@ -169,7 +171,7 @@ class SelfClosingTag(Element):
 
     def hx_put(
         self,
-        target: str,
+        target: str | URL,
         hx_encoding: Literal["multipart/form-data"] | None = None,
         hx_target: str | Self | None = None,
         hx_swap: Literal[
@@ -189,7 +191,7 @@ class SelfClosingTag(Element):
 
     def hx_delete(
         self,
-        target: str,
+        target: str | URL,
         hx_encoding: Literal["multipart/form-data"] | None = None,
         hx_target: str | Self | None = None,
         hx_swap: Literal[
