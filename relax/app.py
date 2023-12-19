@@ -9,6 +9,7 @@ from typing import (
     Callable,
     Concatenate,
     Generic,
+    Literal,
     Mapping,
     Protocol,
     TypedDict,
@@ -36,6 +37,7 @@ PathStr = Annotated[str, "path_param"]
 P = ParamSpec("P")
 T = TypeVar("T")
 
+Method = Literal["GET", "POST", "PUT", "DELETE", "PATCH"]
 
 class HTMLResponse(starlette.responses.HTMLResponse):
     def __init__(
@@ -57,6 +59,7 @@ class Scope(TypedDict):
 
 class Request(starlette.requests.Request, Generic[T]):
     user: T
+    scope: Scope
 
     def __init__(self, base_request: starlette.requests.Request):
         super().__init__(base_request.scope, base_request._receive, base_request._send)
@@ -99,7 +102,7 @@ class App(Starlette):
     # TODO: method should be enum maybe?
     def path_function(
         self,
-        method: str,
+        method: Method,
         endpoint: str,
         auth_scopes: list[AuthScope] | None = None,
     ):
@@ -163,7 +166,7 @@ class Router:
 
     def path_function(
         self,
-        method: str,
+        method: Method,
         endpoint: str,
         auth_scopes: list[AuthScope] | None = None,
     ):
