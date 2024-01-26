@@ -28,6 +28,7 @@ from starlette.routing import Route
 from typing_extensions import ParamSpec
 
 import relax.html
+import relax.injection
 
 QueryStr = Annotated[str, "query_param"]
 QueryInt = Annotated[int, "query_param"]
@@ -38,6 +39,7 @@ P = ParamSpec("P")
 T = TypeVar("T")
 
 Method = Literal["GET", "POST", "PUT", "DELETE", "PATCH"]
+
 
 class HTMLResponse(starlette.responses.HTMLResponse):
     def __init__(
@@ -92,8 +94,11 @@ def get_annotated(param: Parameter) -> Any:
     if get_origin(param.annotation) is Annotated:
         return get_args(param.annotation)
 
-    if get_origin(get_args(param.annotation)[0]) is Annotated:
-        return get_args(get_args(param.annotation)[0])
+    try:
+        if get_origin(get_args(param.annotation)[0]) is Annotated:
+            return get_args(get_args(param.annotation)[0])
+    except IndexError:
+        return None
 
     return None
 
@@ -211,7 +216,7 @@ class Router:
                             params[param_name] = param.default
                         else:
                             params[param_name] = args[0](param_value)
-                return await func(request, **params)
+                return await relax.injection.injectable(func)(request, **params)
 
             # TODO: maybe make the name file + fn_name?
             # TODO: also, error out when finding a duplicate name

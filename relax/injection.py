@@ -58,7 +58,7 @@ def injectable(func: Callable[_P, Awaitable[_T]]) -> Callable[_P, Awaitable[_T]]
                 if sig.kind is not _ParameterKind.KEYWORD_ONLY:
                     msg = (
                         f"Injected parameter {name} in "
-                        f"{func.__name__} must be keyword-only"
+                        f"function {func.__name__} must be keyword-only"
                     )
                     raise IncorrectInjectableSignatureError(msg)
                 if kwargs.get(name) is not None:
