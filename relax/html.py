@@ -58,7 +58,7 @@ class SelfClosingTag(Element):
         if id:
             self.id(id)
         if hyperscript:
-            self._attributes["_"] = hyperscript
+            self.hyperscript(hyperscript)
         self._parent: Tag | None = None
 
     def render(self) -> str:
@@ -79,6 +79,10 @@ class SelfClosingTag(Element):
 
     def classes(self, classes: list[str]) -> Self:
         self._classes.extend(classes)
+        return self
+
+    def hyperscript(self, command: str) -> Self:
+        self._attributes["_"] = command
         return self
 
     def attrs(self, attrs: dict) -> Self:
