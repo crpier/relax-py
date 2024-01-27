@@ -106,3 +106,25 @@ def add_injectable(annotation: Hashable, injectable: object) -> None:
         msg = f"Injectable {annotation} already added"
         raise DoubleInjectionError(msg)
     _INJECTS[annotation] = injectable
+
+
+
+class Prop:
+    ...
+
+def component(func: Callable[_P, _T]) -> Callable[_P, _T]:
+    def inner(*args: _P.args, **kwargs: _P.kwargs) -> _T:
+        for name, sig in signature(func).parameters.items():
+            if sig.default is Prop:
+                if sig.kind is not _ParameterKind.KEYWORD_ONLY:
+                    msg = (
+                        f"Injected parameter {name} in "
+                        f"{func.__name__} must be keyword-only"
+                    )
+                    raise IncorrectInjectableSignatureError(msg)
+                if kwargs.get(name) is not None:
+                    pass
+                kwargs.update({"component_id": f"{func.__name__}"})
+        return func(*args, **kwargs)
+
+    return inner
