@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "relax-py"
-version = "0.3.0"
+version = "0.5.0"
 description = ""
 authors = ["crpier <crpier42@gmail.com>"]
 readme = "README.md"
@@ -43,6 +43,8 @@ ignore = [
 "PLR0913", # let me have lots of params in func signature
 # TODO: check if that can be ignored in file only
 "SLF001", # allow using private member
+"FBT001", # allow boolean args with default values
+"FBT002", # same thing I guess?
 ]
 
 [tool.isort]
