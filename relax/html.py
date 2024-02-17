@@ -222,9 +222,12 @@ class Tag(SelfClosingTag):
         attrs: dict | None = None,
         id: str | None = None,
         hyperscript: str | None = None,
+        text: str | None = None,
     ) -> None:
         super().__init__(classes=classes, attrs=attrs, id=id, hyperscript=hyperscript)
         self._children: list[Element] = []
+        if text is not None:
+            self.text(text)
 
     def render(self) -> str:
         return (
@@ -476,6 +479,7 @@ class input(SelfClosingTag):
         attrs: dict | None = None,
         id: str | None = None,
         hyperscript: str | None = None,
+        disabled: bool = False,
     ) -> None:
         super().__init__(classes=classes, attrs=attrs, id=id, hyperscript=hyperscript)
         self._attributes["name"] = name
@@ -484,6 +488,8 @@ class input(SelfClosingTag):
             self._attributes["value"] = value
         if placeholder:
             self._attributes["placeholder"] = placeholder
+        if disabled is True:
+            self._attributes["disabled"] = True
 
 
 class img(SelfClosingTag):
@@ -525,6 +531,24 @@ class video(Tag):
 class textarea(Tag):
     name = "textarea"
 
+    def __init__(
+        self,
+        name: str,
+        type: InputType,
+        placeholder: str | None = None,
+        classes: list[str] | None = None,
+        attrs: dict | None = None,
+        id: str | None = None,
+        hyperscript: str | None = None,
+        disabled: bool = False,
+    ) -> None:
+        super().__init__(classes=classes, attrs=attrs, id=id, hyperscript=hyperscript)
+        self._attributes["name"] = name
+        self._attributes["type"] = type
+        if placeholder:
+            self._attributes["placeholder"] = placeholder
+        if disabled is True:
+            self._attributes["disabled"] = True
 
 class meta(SelfClosingTag):
     name = "meta"
