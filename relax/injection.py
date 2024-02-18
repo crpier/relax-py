@@ -27,6 +27,8 @@ from collections.abc import Callable
 from inspect import _ParameterKind, signature
 from typing import Awaitable, Hashable, ParamSpec, TypeVar
 
+from relax.html import Element
+
 
 class MissingDependencyError(Exception):
     ...
@@ -108,23 +110,31 @@ def add_injectable(annotation: Hashable, injectable: object) -> None:
     _INJECTS[annotation] = injectable
 
 
-
 class Prop:
     ...
 
-def component(func: Callable[_P, _T]) -> Callable[_P, _T]:
-    def inner(*args: _P.args, **kwargs: _P.kwargs) -> _T:
-        for name, sig in signature(func).parameters.items():
-            if sig.default is Prop:
-                if sig.kind is not _ParameterKind.KEYWORD_ONLY:
-                    msg = (
-                        f"Injected parameter {name} in "
-                        f"{func.__name__} must be keyword-only"
-                    )
-                    raise IncorrectInjectableSignatureError(msg)
-                if kwargs.get(name) is not None:
-                    pass
-                kwargs.update({"component_id": f"{func.__name__}"})
-        return func(*args, **kwargs)
 
-    return inner
+_COMPONENT_NAMES: list[str] = []
+
+
+def component(key: Callable[..., str]):
+    def decorator(func: Callable[..., Element]):
+        if func.__name__ in _COMPONENT_NAMES:
+            msg = f"Component {func.__name__} already registered"
+            raise ValueError(msg)
+        _COMPONENT_NAMES.append(func.__name__)
+
+        def inner(**kwargs):
+            from inspect import signature
+
+            lsig = signature(key)
+            lambda_args = []
+            for p_name in lsig.parameters:
+                lambda_args.append(kwargs[p_name])
+            key_val = key(*lambda_args)
+            elem_id = f"{func.__name__}-{key_val}"
+            return func(id=elem_id, **kwargs).set_id(elem_id).classes([func.__name__])
+
+        return inner
+
+    return decorator

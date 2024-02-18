@@ -36,6 +36,16 @@ class Element(Protocol):
     def render(self) -> str:
         ...
 
+    def set_id(self, id: str) -> Self:
+        ...
+
+    @property
+    def id(self) -> Self:
+        ...
+
+    def classes(self, classes: list[str]) -> Self:
+        ...
+
 
 class SelfClosingTag(Element):
     name: str
@@ -56,7 +66,7 @@ class SelfClosingTag(Element):
         if attrs:
             self.attrs(attrs)
         if id:
-            self.id(id)
+            self.set_id(id)
         if hyperscript:
             self.hyperscript(hyperscript)
         self._parent: Tag | None = None
@@ -89,9 +99,13 @@ class SelfClosingTag(Element):
         self._attributes.update(attrs)
         return self
 
-    def id(self, value: str) -> Self:
+    def set_id(self, value: str) -> Self:
         self._attributes["id"] = value
         return self
+
+    @property
+    def id(self) -> Self:
+        return self._attributes["id"]
 
     def _htmx(
         self,
@@ -549,6 +563,7 @@ class textarea(Tag):
             self._attributes["placeholder"] = placeholder
         if disabled is True:
             self._attributes["disabled"] = True
+
 
 class meta(SelfClosingTag):
     name = "meta"
