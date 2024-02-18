@@ -119,10 +119,11 @@ _COMPONENT_NAMES: list[str] = []
 
 def component(key: Callable[..., str]):
     def decorator(func: Callable[..., Element]):
-        if func.__name__ in _COMPONENT_NAMES:
-            msg = f"Component {func.__name__} already registered"
+        component_name = func.__name__.replace("_", "-")
+        if component_name in _COMPONENT_NAMES:
+            msg = f"Component {component_name} already registered"
             raise ValueError(msg)
-        _COMPONENT_NAMES.append(func.__name__)
+        _COMPONENT_NAMES.append(component_name)
 
         def inner(**kwargs):
             from inspect import signature
@@ -132,8 +133,8 @@ def component(key: Callable[..., str]):
             for p_name in lsig.parameters:
                 lambda_args.append(kwargs[p_name])
             key_val = key(*lambda_args)
-            elem_id = f"{func.__name__}-{key_val}"
-            return func(id=elem_id, **kwargs).set_id(elem_id).classes([func.__name__])
+            elem_id = f"{component_name}-{key_val}"
+            return func(id=elem_id, **kwargs).set_id(elem_id).classes([component_name])
 
         return inner
 
