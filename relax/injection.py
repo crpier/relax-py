@@ -115,9 +115,10 @@ class Prop:
 
 
 _COMPONENT_NAMES: list[str] = []
+_COMPONENT_IDS: list[str] = []
 
 
-def component(key: Callable[..., str]):
+def component(key: Callable[..., str] | str | None = None):
     def decorator(func: Callable[..., Element]):
         component_name = func.__name__.replace("_", "-")
         if component_name in _COMPONENT_NAMES:
@@ -126,15 +127,24 @@ def component(key: Callable[..., str]):
         _COMPONENT_NAMES.append(component_name)
 
         def inner(**kwargs):
-            from inspect import signature
-
-            lsig = signature(key)
-            lambda_args = []
-            for p_name in lsig.parameters:
-                lambda_args.append(kwargs[p_name])
-            key_val = key(*lambda_args)
-            elem_id = f"{component_name}-{key_val}"
-            return func(id=elem_id, **kwargs).set_id(elem_id).classes([component_name])
+            if isinstance(key, str):
+                key_val = key
+                elem_id = f"{component_name}-{key_val}"
+            elif key:
+                lsig = signature(key)
+                lambda_args = []
+                for p_name in lsig.parameters:
+                    lambda_args.append(kwargs[p_name])
+                key_val = key(*lambda_args)
+                elem_id = f"{component_name}-{key_val}"
+            else:
+                elem_id = component_name
+            new_func = injectable_sync(func)
+            if "id" in signature(func).parameters:
+                func_call_result = new_func(id=elem_id, **kwargs)
+            else:
+                func_call_result = new_func(**kwargs)
+            return func_call_result.set_id(elem_id).classes([component_name])
 
         return inner
 
