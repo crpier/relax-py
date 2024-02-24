@@ -110,10 +110,6 @@ def add_injectable(annotation: Hashable, injectable: object) -> None:
     _INJECTS[annotation] = injectable
 
 
-class Prop:
-    ...
-
-
 _COMPONENT_NAMES: list[str] = []
 _COMPONENT_IDS: list[str] = []
 

@@ -378,7 +378,7 @@ class a(Tag):
 
     def __init__(
         self,
-        href: str,
+        href: str | URL,
         target: HREFTarget | None = None,
         classes: list[str] | None = None,
         attrs: dict | None = None,
@@ -587,8 +587,10 @@ class meta(SelfClosingTag):
 class link(SelfClosingTag):
     name = "link"
 
-    def __init__(self, *, href: str, rel: str) -> None:
+    def __init__(self, *, href: str, rel: str, type: str | None = None) -> None:
         super().__init__(attrs={"href": href, "rel": rel})
+        if type is not None:
+            self._attributes["type"] = type
 
 
 class title(Tag):
@@ -615,6 +617,9 @@ class script(Tag):
         js: str | None = None,
         src: str | None = None,
         attrs: dict | None = None,
+        *,
+        type: Literal["importmap", "module", "speculationrules"] | None = None,
+        defer: bool = False,
     ) -> None:
         super().__init__()
         if js is not None:
@@ -626,6 +631,10 @@ class script(Tag):
             raise InvalidHTMLError(msg)
         if attrs is not None:
             self._attributes.update(attrs)
+        if defer:
+            self._attributes["defer"] = "true"
+        if type is not None:
+            self._attributes["type"] = type
 
     # sorry mate can't help you escape that
     # your risk
@@ -656,3 +665,7 @@ class html(Tag):
 
     def render(self) -> str:
         return "<!DOCTYPE html>" + super().render()
+
+
+class aside(Tag):
+    name = "aside"

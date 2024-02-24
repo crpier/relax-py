@@ -4,7 +4,6 @@ _COMPONENT_NAMES: list[str]
 _P = ParamSpec("_P")
 _T = TypeVar("_T")
 Injected: Any
-Prop: Any
 
 def injectable(func: Callable[_P, Awaitable[_T]]) -> Callable[_P, Awaitable[_T]]: ...
 def injectable_sync(func: Callable[_P, _T]) -> Callable[_P, _T]: ...
