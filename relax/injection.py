@@ -1,3 +1,5 @@
+import json
+
 """
 A simple dependency injection framework.
 
@@ -24,10 +26,12 @@ weird
 ```
 """
 from collections.abc import Callable
+from functools import wraps
 from inspect import _ParameterKind, signature
-from typing import Awaitable, Hashable, ParamSpec, TypeVar
+from typing import Any, Awaitable, Hashable, ParamSpec, TypeVar
 
 from relax.html import Element
+import warnings
 
 
 class MissingDependencyError(Exception):
@@ -54,6 +58,7 @@ _T = TypeVar("_T")
 
 
 def injectable(func: Callable[_P, Awaitable[_T]]) -> Callable[_P, Awaitable[_T]]:
+    @wraps(func)
     async def inner(*args: _P.args, **kwargs: _P.kwargs) -> _T:
         for name, sig in signature(func).parameters.items():
             if sig.default is Injected:
@@ -79,6 +84,7 @@ def injectable(func: Callable[_P, Awaitable[_T]]) -> Callable[_P, Awaitable[_T]]
 
 
 def injectable_sync(func: Callable[_P, _T]) -> Callable[_P, _T]:
+    @wraps(func)
     def inner(*args: _P.args, **kwargs: _P.kwargs) -> _T:
         for name, sig in signature(func).parameters.items():
             if sig.default is Injected:
@@ -119,9 +125,10 @@ def component(key: Callable[..., str] | str | None = None):
         component_name = func.__name__.replace("_", "-")
         if component_name in _COMPONENT_NAMES:
             msg = f"Component {component_name} already registered"
-            raise ValueError(msg)
+            # warnings.warn(msg, stacklevel=1)
         _COMPONENT_NAMES.append(component_name)
 
+        @wraps(func)
         def inner(**kwargs):
             if isinstance(key, str):
                 key_val = key
@@ -137,11 +144,30 @@ def component(key: Callable[..., str] | str | None = None):
                 elem_id = component_name
             new_func = injectable_sync(func)
             if "id" in signature(func).parameters:
+                # TODO: don't set the id if it was provided in the kwargs already
                 func_call_result = new_func(id=elem_id, **kwargs)
             else:
                 func_call_result = new_func(**kwargs)
-            return func_call_result.set_id(elem_id).classes([component_name])
+            data = json.dumps({key: to_json(val) for (key, val) in kwargs.items()})
+            # print(data)
+            # print(type(data))
+            return (
+                func_call_result.set_id(elem_id)
+                .classes([component_name])
+                .attrs(
+                    {
+                        "data-component": f"{func.__module__}.{func.__name__}",
+                        "data-values": data,
+                    },
+                )
+            )
 
         return inner
 
     return decorator
+
+
+def to_json(obj: Any) -> str:
+    if hasattr(obj, "model_dump_json"):
+        obj = obj.model_dump(mode="json")
+    return obj

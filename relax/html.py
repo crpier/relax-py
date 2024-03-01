@@ -46,6 +46,9 @@ class Element(Protocol):
     def classes(self, classes: list[str]) -> Self:
         ...
 
+    def attrs(self, attrs: dict) -> Self:
+        ...
+
 
 class SelfClosingTag(Element):
     name: str
@@ -669,3 +672,54 @@ class html(Tag):
 
 class aside(Tag):
     name = "aside"
+
+
+# TODO: expose a hook, or handle updating elements some other way
+def hmr_script() -> script:
+    return script(
+        js="""let socket = new WebSocket("ws://127.0.0.1:8000/ws");
+addSocketListeners(socket);
+console.log("connected to ws server");
+
+/** @param {WebSocket} socket **/
+function addSocketListeners(socket) {
+  socket.addEventListener("open", (ev) => {
+    console.log("sent components data");
+    const components = Array.from(
+      document.querySelectorAll("[data-component]"),
+    );
+    const componentsMap = components.reduce((map, el) => {
+      let newMap = {};
+      newMap[el.dataset.component] = el.dataset.values;
+      map[el.id] = newMap;
+      return map;
+    }, {});
+    socket.send(JSON.stringify(componentsMap));
+  });
+
+  socket.addEventListener("message", (ev) => {
+    console.log("new event");
+    const event = JSON.parse(ev.data);
+    if (event.event_type === "update_views") {
+      let newElems = event.data;
+      for (const [id, html] of Object.entries(newElems)) {
+        let replaced = document.getElementById(id);
+        replaced.insertAdjacentHTML("afterend", html);
+        replaced.remove();
+      }
+      //reloadAvailablePosts();
+    }
+  });
+
+  socket.addEventListener("close", (event) => {
+    console.log("socket closed");
+    socket = new WebSocket("ws://127.0.0.1:8000/ws");
+    console.log("re-connected to ws server");
+    addSocketListeners(socket);
+  });
+
+  socket.addEventListener("error", (event) => {
+    console.log("socket errored");
+  });
+}""",
+    )

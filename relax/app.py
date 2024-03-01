@@ -1,3 +1,18 @@
+import threading
+import asyncio
+import importlib
+import json
+import os
+from inspect import signature
+from pathlib import Path
+from types import ModuleType
+
+from pydantic import BaseModel
+from relax.injection import Injected
+from starlette.websockets import WebSocket, WebSocketDisconnect
+from watchfiles import awatch
+
+
 import inspect
 from dataclasses import Field, _MISSING_TYPE
 from enum import StrEnum, auto
@@ -20,7 +35,7 @@ from typing import (
     get_args,
     get_origin,
 )
-from starlette.datastructures import URL, FormData, UploadFile
+from starlette.datastructures import URL, FormData
 
 import starlette.requests
 import starlette.types
@@ -40,6 +55,17 @@ PathStr = Annotated[str, "path_param"]
 
 P = ParamSpec("P")
 T = TypeVar("T")
+
+
+def run_async(coro):  # coro is a couroutine, see example
+    _loop = asyncio.new_event_loop()
+
+    _thr = threading.Thread(target=_loop.run_forever, name="Async Runner", daemon=True)
+
+    if not _thr.is_alive():
+        _thr.start()
+    future = asyncio.run_coroutine_threadsafe(coro, _loop)
+    return future.result()
 
 
 class DataclassInstance(Protocol):
@@ -164,6 +190,87 @@ def get_annotated(param: Parameter) -> Any:
     return None
 
 
+CLIENTS = set()
+VIEWS_DATA = []
+IMPORTS: dict[str, ModuleType] = {}
+
+
+async def hot_replace_templates(templates_dir):
+    async for changes in awatch(templates_dir):
+        real_changes = {
+            change[1]
+            for change in changes
+            if os.path.exists(change[1]) and not Path(change[1]).match(".*")
+        }
+        if len(real_changes) == 0:
+            continue
+        changed_paths = [
+            Path(change).relative_to(Path.cwd()) for change in real_changes
+        ]
+        for file_path in changed_paths:
+            str_path = str(file_path)
+            str_path = str_path.removesuffix(file_path.suffix)
+            str_path = str_path.replace(os.sep, ".")
+            if str_path in IMPORTS:
+                IMPORTS[str_path] = importlib.reload(IMPORTS[str_path])
+            else:
+                IMPORTS[str_path] = importlib.import_module(str_path)
+                IMPORTS[str_path] = importlib.reload(IMPORTS[str_path])
+
+        new_views = load_views(VIEWS_DATA)
+        if new_views is not None:
+            for client in CLIENTS:
+                await client.send_text(
+                    json.dumps({"event_type": "update_views", "data": new_views}),
+                )
+        else:
+            print("no data to update server with")
+
+
+def load_views(data: str) -> dict | None:
+    updated_views = {}
+    try:
+        raw_data = json.loads(data)
+    except TypeError as e:
+        print("failed parsing JSON data: ", e)
+        return None
+
+    for element in raw_data:
+        for fn_path, fn_data in raw_data[element].items():
+            fn_values = json.loads(fn_data)
+            fn_module, fn_name = fn_path.rsplit(".", 1)
+            if fn_module not in IMPORTS:
+                IMPORTS[fn_module] = importlib.import_module(fn_module)
+            fn = getattr(IMPORTS[fn_module], fn_name)
+
+            for name, param in signature(fn).parameters.items():
+                if (
+                    param.default is not Injected
+                    and isinstance(fn_values[name], dict)
+                    and issubclass(param.annotation, BaseModel)
+                ):
+                    model_obj = fn_values[name]
+                    fn_values[name] = param.annotation(**(model_obj))
+
+            updated_views[element] = fn(**fn_values).render()
+    return updated_views
+
+
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    print("got new websocket connection")
+    CLIENTS.add(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            global VIEWS_DATA  # noqa: PLW0603
+            VIEWS_DATA = data
+            print("got new data")
+            # Echo received message to all connected CLIENTS
+    except WebSocketDisconnect:
+        CLIENTS.remove(websocket)
+
+
 class RelaxRoute:
     def __init__(
         self,
@@ -203,7 +310,9 @@ class ViewContext:
         return self.path_functions[func]
 
 
-class App(Starlette):
+class App(Starlette, Generic[T]):
+    config: T
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.view_context = ViewContext(self)
