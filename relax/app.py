@@ -35,7 +35,7 @@ from typing import (
     get_args,
     get_origin,
 )
-from starlette.datastructures import URL, FormData
+from starlette.datastructures import URL, FormData as BaseFormData
 
 import starlette.requests
 import starlette.types
@@ -56,6 +56,7 @@ PathStr = Annotated[str, "path_param"]
 P = ParamSpec("P")
 T = TypeVar("T")
 
+type FormData[T] = Annotated[T, "form_data"]
 
 def run_async(coro):  # coro is a couroutine, see example
     _loop = asyncio.new_event_loop()
@@ -87,7 +88,7 @@ class HTMLResponse(starlette.responses.HTMLResponse):
         super().__init__(content.render(), status_code, headers)
 
 
-def extract_from_form(form: FormData, data_shape: Type[DataclassT]) -> DataclassT:
+def extract_from_form(form: BaseFormData, data_shape: Type[DataclassT]) -> DataclassT:
     fields: dict[str, Any] = {}
     for name, field in data_shape.__dataclass_fields__.items():
         try:
@@ -178,12 +179,16 @@ class UserType(Protocol):
 
 
 def get_annotated(param: Parameter) -> Any:
-    if get_origin(param.annotation) is Annotated:
-        return get_args(param.annotation)
+    annotation = param.annotation
+    if get_origin(annotation) is Annotated:
+        return get_args(annotation)
+
+    if get_origin(getattr(get_origin(annotation), "__value__", None)) is Annotated:
+        return (get_args(annotation)[0], get_args(getattr(get_origin(annotation), "__value__", None))[1])
 
     try:
-        if get_origin(get_args(param.annotation)[0]) is Annotated:
-            return get_args(get_args(param.annotation)[0])
+        if get_origin(get_args(annotation)[0]) is Annotated:
+            return get_args(get_args(annotation)[0])
     except IndexError:
         return None
 
@@ -191,7 +196,7 @@ def get_annotated(param: Parameter) -> Any:
 
 
 CLIENTS = set()
-VIEWS_DATA = []
+VIEWS_DATA = ""
 IMPORTS: dict[str, ModuleType] = {}
 
 
@@ -207,6 +212,7 @@ async def hot_replace_templates(templates_dir):
         changed_paths = [
             Path(change).relative_to(Path.cwd()) for change in real_changes
         ]
+        print("new changes: ", changed_paths)
         for file_path in changed_paths:
             str_path = str(file_path)
             str_path = str_path.removesuffix(file_path.suffix)
@@ -217,42 +223,53 @@ async def hot_replace_templates(templates_dir):
                 IMPORTS[str_path] = importlib.import_module(str_path)
                 IMPORTS[str_path] = importlib.reload(IMPORTS[str_path])
 
-        new_views = load_views(VIEWS_DATA)
+        print("reloaded changes")
+        new_views = load_views()
+        print("loaded views")
         if new_views is not None:
             for client in CLIENTS:
                 await client.send_text(
                     json.dumps({"event_type": "update_views", "data": new_views}),
                 )
+            print("updated browser")
         else:
             print("no data to update server with")
 
 
-def load_views(data: str) -> dict | None:
+def load_views() -> dict | None:
     updated_views = {}
     try:
-        raw_data = json.loads(data)
+        raw_data = json.loads(VIEWS_DATA)
     except TypeError as e:
         print("failed parsing JSON data: ", e)
         return None
 
-    for element in raw_data:
-        for fn_path, fn_data in raw_data[element].items():
-            fn_values = json.loads(fn_data)
-            fn_module, fn_name = fn_path.rsplit(".", 1)
-            if fn_module not in IMPORTS:
-                IMPORTS[fn_module] = importlib.import_module(fn_module)
-            fn = getattr(IMPORTS[fn_module], fn_name)
+    print("loaded data")
+    try:
+        for element in raw_data:
+            for fn_path, fn_data in raw_data[element].items():
+                fn_values = json.loads(fn_data)
+                fn_module, fn_name = fn_path.rsplit(".", 1)
+                if fn_module not in IMPORTS:
+                    IMPORTS[fn_module] = importlib.import_module(fn_module)
+                fn = getattr(IMPORTS[fn_module], fn_name)
 
-            for name, param in signature(fn).parameters.items():
-                if (
-                    param.default is not Injected
-                    and isinstance(fn_values[name], dict)
-                    and issubclass(param.annotation, BaseModel)
-                ):
-                    model_obj = fn_values[name]
-                    fn_values[name] = param.annotation(**(model_obj))
+                for name, param in signature(fn).parameters.items():
+                    try:
+                        if (
+                            param.default is not Injected
+                            and isinstance(fn_values[name], dict)
+                            and issubclass(param.annotation, BaseModel)
+                        ):
+                            model_obj = fn_values[name]
+                            fn_values[name] = param.annotation(**(model_obj))
+                    except TypeError:
+                        pass
 
-            updated_views[element] = fn(**fn_values).render()
+                updated_views[element] = fn(**fn_values).render()
+    except Exception as e:
+        print("failed loading views: ", e)
+        return None
     return updated_views
 
 
@@ -263,9 +280,9 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             data = await websocket.receive_text()
+            print("got new data")
             global VIEWS_DATA  # noqa: PLW0603
             VIEWS_DATA = data
-            print("got new data")
             # Echo received message to all connected CLIENTS
     except WebSocketDisconnect:
         CLIENTS.remove(websocket)

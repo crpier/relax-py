@@ -30,8 +30,7 @@ from functools import wraps
 from inspect import _ParameterKind, signature
 from typing import Any, Awaitable, Hashable, ParamSpec, TypeVar
 
-from relax.html import Element
-import warnings
+from relax.html import Component, Element
 
 
 class MissingDependencyError(Exception):
@@ -120,8 +119,12 @@ _COMPONENT_NAMES: list[str] = []
 _COMPONENT_IDS: list[str] = []
 
 
-def component(key: Callable[..., str] | str | None = None):
-    def decorator(func: Callable[..., Element]):
+def component(
+    key: Callable[..., str] | str | None = None,
+) -> Callable[[Callable[_P, Element]], Callable[_P, Component]]:
+    def decorator(
+        func: Callable[_P, Element],
+    ) -> Callable[_P, Component]:
         component_name = func.__name__.replace("_", "-")
         if component_name in _COMPONENT_NAMES:
             msg = f"Component {component_name} already registered"
@@ -129,7 +132,7 @@ def component(key: Callable[..., str] | str | None = None):
         _COMPONENT_NAMES.append(component_name)
 
         @wraps(func)
-        def inner(**kwargs):
+        def inner(**kwargs) -> Component:
             if isinstance(key, str):
                 key_val = key
                 elem_id = f"{component_name}-{key_val}"
@@ -149,8 +152,6 @@ def component(key: Callable[..., str] | str | None = None):
             else:
                 func_call_result = new_func(**kwargs)
             data = json.dumps({key: to_json(val) for (key, val) in kwargs.items()})
-            # print(data)
-            # print(type(data))
             return (
                 func_call_result.set_id(elem_id)
                 .classes([component_name])
