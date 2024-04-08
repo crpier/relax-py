@@ -1,4 +1,5 @@
 import warnings
+import sys
 from pathlib import Path
 from collections.abc import Iterable
 from html import escape
@@ -143,7 +144,7 @@ class SelfClosingTag(Element):
     def _htmx(
         self,
         request_type: HTMXRequestType,
-        target: str,
+        target: str | URL,
         hx_encoding: Literal["multipart/form-data"] | None = None,
         hx_target: str | Self | None = None,
         hx_swap: Literal[
@@ -466,15 +467,6 @@ class label(Tag):
         return super().render()
 
 
-# TODO:
-# class
-# x-show
-# fill
-# stroke-linecap
-# stroke-linejoin
-# stroke-width
-# viewBox
-# stroke
 class svg(Tag):
     name = "svg"
 
@@ -704,12 +696,13 @@ class aside(Tag):
     name = "aside"
 
 
-import sys
-
-
 # TODO: expose a hook, or handle updating elements some other way
-def hmr_scripts() -> list[script]:
-    current_path = Path(sys.modules[__name__].__file__)
+def hmr_script() -> list[script]:
+    file_path = sys.modules[__name__].__file__
+    if file_path is None:
+        msg = "Cannot find current file path"
+        raise RuntimeError(msg)
+    current_path = Path(file_path)
     with (current_path.parent / "js" / "hmr_reload.js").open() as f:
         return [
             script(

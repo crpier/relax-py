@@ -13,6 +13,7 @@ python = "^3.11"
 beautifulsoup4 = "^4.12.2"
 starlette = "^0.31.1"
 typing-extensions = "^4.8.0"
+watchfiles = "^0.21.0"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -21,6 +22,7 @@ black = "^23.10.1"
 isort = "^5.12.0"
 mypy = "^1.6.1"
 pytest = "^7.4.3"
+pydantic = "^2.6.4"
 
 [build-system]
 requires = ["poetry-core"]
@@ -45,6 +47,7 @@ ignore = [
 "SLF001", # allow using private member
 "FBT001", # allow boolean args with default values
 "FBT002", # same thing I guess?
+"ANN102", # don't make me annotate cls
 ]
 
 [tool.isort]

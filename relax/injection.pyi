@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any, Awaitable, Callable, ParamSpec, TypeVar
 
 from relax.html import Component, Element
@@ -13,3 +14,4 @@ def add_injectable(annotation: Any, injectable: Any) -> None: ...
 def component(
     key: Callable[..., str] | str | None = None,
 ) -> Callable[[Callable[_P, Element]], Callable[_P, Component]]: ...
+COMPONENTS_CACHE_FILE: Path

@@ -1,4 +1,12 @@
 import json
+from pathlib import Path
+import warnings
+from collections.abc import Callable
+from functools import wraps
+from inspect import _ParameterKind, signature
+from typing import Any, Awaitable, Hashable, ParamSpec, TypeVar, Protocol, Self
+
+from relax.html import Component, Element
 
 """
 A simple dependency injection framework.
@@ -25,12 +33,6 @@ default
 weird
 ```
 """
-from collections.abc import Callable
-from functools import wraps
-from inspect import _ParameterKind, signature
-from typing import Any, Awaitable, Hashable, ParamSpec, TypeVar
-
-from relax.html import Component, Element
 
 
 class MissingDependencyError(Exception):
@@ -54,6 +56,21 @@ class Injected:
 
 _P = ParamSpec("_P")
 _T = TypeVar("_T")
+
+# TODO: rm this on shutdown
+COMPONENTS_CACHE_FILE = Path("/tmp/relax_components.json")
+
+
+class Jsonable(Protocol):
+    def model_dump_json(self) -> str:
+        ...
+
+    @classmethod
+    def model_validate_json(
+        cls,
+        json_data: str | bytes | bytearray,
+    ) -> Self:
+        ...
 
 
 def injectable(func: Callable[_P, Awaitable[_T]]) -> Callable[_P, Awaitable[_T]]:
@@ -128,11 +145,11 @@ def component(
         component_name = func.__name__.replace("_", "-")
         if component_name in _COMPONENT_NAMES:
             msg = f"Component {component_name} already registered"
-            # warnings.warn(msg, stacklevel=1)
+            warnings.warn(msg, stacklevel=1)
         _COMPONENT_NAMES.append(component_name)
 
         @wraps(func)
-        def inner(**kwargs) -> Component:
+        def inner(**kwargs: Jsonable) -> Component:
             if isinstance(key, str):
                 key_val = key
                 elem_id = f"{component_name}-{key_val}"
@@ -151,17 +168,18 @@ def component(
                 func_call_result = new_func(id=elem_id, **kwargs)
             else:
                 func_call_result = new_func(**kwargs)
-            data = json.dumps({key: to_json(val) for (key, val) in kwargs.items()})
-            return (
-                func_call_result.set_id(elem_id)
-                .classes([component_name])
-                .attrs(
-                    {
-                        "data-component": f"{func.__module__}.{func.__name__}",
-                        "data-values": data,
-                    },
-                )
-            )
+            data = {key: to_json(val) for (key, val) in kwargs.items()}
+            # TODO: find a way to do this only in dev mode
+            try:
+                with COMPONENTS_CACHE_FILE.open() as f:
+                    current_views = json.load(f)
+            except (TypeError, FileNotFoundError):
+                current_views = {}
+            view_key = f"{func.__module__}.{func.__name__}"
+            current_views[elem_id] = {"path": view_key, "data": data}
+            with COMPONENTS_CACHE_FILE.open("w") as f:
+                json.dump(current_views, f)
+            return func_call_result.set_id(elem_id)
 
         return inner
 

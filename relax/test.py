@@ -1,25 +1,12 @@
-import pytest
 import inspect
-from typing import Any, Callable, ParamSpec, Type, TypeVar, get_args
+from typing import Any, Callable, ParamSpec, TypeVar, get_args
 from inspect import signature
 
 P = ParamSpec("P")
 T = TypeVar("T")
 
 
-def cringe_fixture(*args, **kwargs) -> Any:
-    return pytest.fixture(*args, **kwargs)
-
-
-def cringe_check(func: Callable[..., None]):
-    renames = {}
-    sig = signature(func)
-    for name, val in sig.parameters.items():
-        renames[name] = val.annotation.__name__
-    return _rename_parameters(func, renames)
-
-
-def check(func: Callable[..., None]):
+def check(func: Callable[..., None]):  # noqa: ANN201
     renames = {}
     sig = signature(func)
     for name, val in sig.parameters.items():
@@ -29,7 +16,7 @@ def check(func: Callable[..., None]):
     return _rename_parameters(func, renames)
 
 
-def _rename_parameters(func, rename_dict):
+def _rename_parameters(func, rename_dict):  # noqa: ANN001, ANN202
     original_sig = inspect.signature(func)
     new_params = [
         param.replace(name=rename_dict.get(param.name, param.name))
@@ -37,10 +24,10 @@ def _rename_parameters(func, rename_dict):
     ]
     new_sig = original_sig.replace(parameters=new_params)
 
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any): # noqa: ANN202
         bound_args = new_sig.bind(*args, **kwargs)
         return func(*bound_args.args, **bound_args.kwargs)
 
-    wrapper.__signature__ = new_sig
+    wrapper.__signature__ = new_sig  # type: ignore[reportFunctionMemberAccess]
 
     return wrapper

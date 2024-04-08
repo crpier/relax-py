@@ -2,22 +2,9 @@ let socket = new WebSocket("ws://127.0.0.1:8000/ws");
 addSocketListeners(socket);
 console.log("connected to ws server");
 
-function updateData() {
-  console.log("sent components data");
-  const components = Array.from(document.querySelectorAll("[data-component]"));
-  const componentsMap = components.reduce((map, el) => {
-    let newMap = {};
-    newMap[el.dataset.component] = el.dataset.values;
-    map[el.id] = newMap;
-    return map;
-  }, {});
-  socket.send(JSON.stringify(componentsMap));
-}
-
 /** @param {WebSocket} socket **/
 function addSocketListeners(socket) {
   socket.addEventListener("open", (ev) => {
-    updateData();
   });
 
   socket.addEventListener("message", (ev) => {
@@ -43,7 +30,3 @@ function addSocketListeners(socket) {
     console.log("socket errored");
   });
 }
-
-htmx.on("htmx:afterSettle", function(_) {
-  updateData();
-});
