@@ -16,7 +16,10 @@ def check(func: Callable[..., None]):  # noqa: ANN201
     return _rename_parameters(func, renames)
 
 
-def _rename_parameters(func, rename_dict):  # noqa: ANN001, ANN202
+def _rename_parameters(
+    func: Callable[..., None],
+    rename_dict: dict,
+) -> Callable[..., None]:
     original_sig = inspect.signature(func)
     new_params = [
         param.replace(name=rename_dict.get(param.name, param.name))
@@ -24,7 +27,7 @@ def _rename_parameters(func, rename_dict):  # noqa: ANN001, ANN202
     ]
     new_sig = original_sig.replace(parameters=new_params)
 
-    def wrapper(*args: Any, **kwargs: Any): # noqa: ANN202
+    def wrapper(*args: Any, **kwargs: Any):  # noqa: ANN202
         bound_args = new_sig.bind(*args, **kwargs)
         return func(*bound_args.args, **bound_args.kwargs)
 

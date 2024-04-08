@@ -49,6 +49,10 @@ ignore = [
 "FBT002", # same thing I guess?
 "ANN102", # don't make me annotate cls
 ]
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "ANN201"]
+
+
 
 [tool.isort]
 profile = "black"

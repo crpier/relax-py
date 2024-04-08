@@ -378,8 +378,15 @@ class button(Tag):
         attrs: dict | None = None,
         id: str | None = None,
         hyperscript: str | None = None,
+        text: str | None = None,
     ) -> None:
-        super().__init__(classes=classes, attrs=attrs, id=id, hyperscript=hyperscript)
+        super().__init__(
+            classes=classes,
+            attrs=attrs,
+            id=id,
+            hyperscript=hyperscript,
+            text=text,
+        )
         if type:
             self._attributes["type"] = type
         else:
@@ -418,8 +425,15 @@ class a(Tag):
         attrs: dict | None = None,
         id: str | None = None,
         hyperscript: str | None = None,
+        text: str | None = None,
     ) -> None:
-        super().__init__(classes=classes, attrs=attrs, id=id, hyperscript=hyperscript)
+        super().__init__(
+            classes=classes,
+            attrs=attrs,
+            id=id,
+            hyperscript=hyperscript,
+            text=text,
+        )
         self._attributes["href"] = href
         if target:
             self._attributes["target"] = target
@@ -429,6 +443,12 @@ class li(Tag):
     name = "li"
 
     def render(self) -> str:
+        if not self._parent:
+            warnings.warn(
+                f'"{self.name}" element should be a child of "ul" or "ol"',
+                stacklevel=2,
+            )
+
         if self._parent and self._parent.name not in ["ul", "ol"]:
             warnings.warn(
                 f'"{self.name}" element should be a child of "ul" or "ol"',
@@ -457,6 +477,11 @@ class label(Tag):
         self._attributes["for"] = _for
 
     def render(self) -> str:
+        if not self._parent:
+            warnings.warn(
+                f'"{self.name}" element should have a sibling "input"',
+                stacklevel=2,
+            )
         if self._parent and all(
             sibling.name not in ["input"] for sibling in self._parent._children
         ):

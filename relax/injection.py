@@ -50,8 +50,11 @@ class DoubleInjectionError(Exception):
 _INJECTS: dict[Hashable, object] = {}
 
 
-class Injected:
+class _Injected:
     ...
+
+
+Injected: Any = _Injected
 
 
 _P = ParamSpec("_P")
@@ -59,6 +62,7 @@ _T = TypeVar("_T")
 
 # TODO: rm this on shutdown
 COMPONENTS_CACHE_FILE = Path("/tmp/relax_components.json")
+_COMPONENT_NAMES: list[str] = []
 
 
 class Jsonable(Protocol):
@@ -73,27 +77,31 @@ class Jsonable(Protocol):
         ...
 
 
+def inject_into_kwargs(func: Callable, kwargs: Any) -> None:
+    for name, sig in signature(func).parameters.items():
+        if sig.default is _Injected:
+            if sig.kind is not _ParameterKind.KEYWORD_ONLY:
+                msg = (
+                    f"Injected parameter {name} in "
+                    f"{func.__name__} must be keyword-only"
+                )
+                raise IncorrectInjectableSignatureError(msg)
+            if kwargs.get(name) is not None:
+                pass
+            elif sig.annotation in _INJECTS:
+                kwargs.update({name: _INJECTS[sig.annotation]})
+            else:
+                msg = (
+                    "Missing dependency for "
+                    f"{name}: {sig.annotation} in {func.__name__}"
+                )
+                raise MissingDependencyError(msg)
+
+
 def injectable(func: Callable[_P, Awaitable[_T]]) -> Callable[_P, Awaitable[_T]]:
     @wraps(func)
     async def inner(*args: _P.args, **kwargs: _P.kwargs) -> _T:
-        for name, sig in signature(func).parameters.items():
-            if sig.default is Injected:
-                if sig.kind is not _ParameterKind.KEYWORD_ONLY:
-                    msg = (
-                        f"Injected parameter {name} in "
-                        f"function {func.__name__} must be keyword-only"
-                    )
-                    raise IncorrectInjectableSignatureError(msg)
-                if kwargs.get(name) is not None:
-                    pass
-                elif sig.annotation in _INJECTS:
-                    kwargs.update({name: _INJECTS[sig.annotation]})
-                else:
-                    msg = (
-                        "Missing dependency for "
-                        f"{name}: {sig.annotation} in {func.__name__}"
-                    )
-                    raise MissingDependencyError(msg)
+        inject_into_kwargs(func, kwargs)
         return await func(*args, **kwargs)
 
     return inner
@@ -102,24 +110,7 @@ def injectable(func: Callable[_P, Awaitable[_T]]) -> Callable[_P, Awaitable[_T]]
 def injectable_sync(func: Callable[_P, _T]) -> Callable[_P, _T]:
     @wraps(func)
     def inner(*args: _P.args, **kwargs: _P.kwargs) -> _T:
-        for name, sig in signature(func).parameters.items():
-            if sig.default is Injected:
-                if sig.kind is not _ParameterKind.KEYWORD_ONLY:
-                    msg = (
-                        f"Injected parameter {name} in "
-                        f"{func.__name__} must be keyword-only"
-                    )
-                    raise IncorrectInjectableSignatureError(msg)
-                if kwargs.get(name) is not None:
-                    pass
-                elif sig.annotation in _INJECTS:
-                    kwargs.update({name: _INJECTS[sig.annotation]})
-                else:
-                    msg = (
-                        "Missing dependency for "
-                        f"{name}: {sig.annotation} in {func.__name__}"
-                    )
-                    raise MissingDependencyError(msg)
+        inject_into_kwargs(func, kwargs)
         return func(*args, **kwargs)
 
     return inner
@@ -132,10 +123,6 @@ def add_injectable(annotation: Hashable, injectable: object) -> None:
     _INJECTS[annotation] = injectable
 
 
-_COMPONENT_NAMES: list[str] = []
-_COMPONENT_IDS: list[str] = []
-
-
 def component(
     key: Callable[..., str] | str | None = None,
 ) -> Callable[[Callable[_P, Element]], Callable[_P, Component]]:
@@ -143,6 +130,7 @@ def component(
         func: Callable[_P, Element],
     ) -> Callable[_P, Component]:
         component_name = func.__name__.replace("_", "-")
+        # TODO: don't do this in dev, or find a way to make it useful
         if component_name in _COMPONENT_NAMES:
             msg = f"Component {component_name} already registered"
             warnings.warn(msg, stacklevel=1)
