@@ -1,4 +1,7 @@
+import contextlib
+from socket import AF_UNIX, SOCK_STREAM, socket
 import logging
+import uvicorn.config
 from uvicorn.supervisors.watchfilesreload import WatchFilesReload
 import importlib
 import uvicorn
@@ -8,10 +11,9 @@ from pathlib import Path
 from types import ModuleType
 
 from pydantic import BaseModel
-from relax.injection import Injected, injectable, COMPONENTS_CACHE_FILE, add_injectable
+from relax.injection import Injected, injectable, COMPONENTS_CACHE_FILE
 from relax.config import BaseConfig
 from starlette.websockets import WebSocket, WebSocketDisconnect
-from watchfiles import awatch
 
 
 import inspect
@@ -194,45 +196,6 @@ def get_annotated(param: Parameter) -> Any:
     return None
 
 
-async def hot_replace_templates(templates_dir: str) -> None:
-    try:
-        async for changes in awatch(templates_dir):
-            real_changes = {
-                change[1]
-                for change in changes
-                if Path(change[1]).exists() and not Path(change[1]).match(".*")
-            }
-            if len(real_changes) == 0:
-                continue
-            changed_paths = [
-                Path(change).relative_to(Path.cwd()) for change in real_changes
-            ]
-            logger.warning("new changes: %s", changed_paths)
-            for file_path in changed_paths:
-                str_path = str(file_path)
-                str_path = str_path.removesuffix(file_path.suffix)
-                str_path = str_path.replace(os.sep, ".")
-                if str_path in IMPORTS:
-                    IMPORTS[str_path] = importlib.reload(IMPORTS[str_path])
-                else:
-                    IMPORTS[str_path] = importlib.import_module(str_path)
-                    IMPORTS[str_path] = importlib.reload(IMPORTS[str_path])
-
-            logger.warning("reloaded changes")
-            new_views = load_views()
-            logger.warning("loaded views")
-            if new_views is not None:
-                for client in CLIENTS:
-                    await client.send_text(
-                        json.dumps({"event_type": "update_views", "data": new_views}),
-                    )
-                logger.warning("updated browser")
-            else:
-                logger.warning("no data to update server with")
-    except Exception as e:  # noqa: BLE001
-        print(e)  # noqa: T201
-
-
 def load_views() -> dict | None:
     with COMPONENTS_CACHE_FILE.open("r") as f:
         try:
@@ -396,6 +359,101 @@ class Router(BaseRouter):
         return decorator
 
 
+async def listen_to_changes() -> None:
+    base_config = BaseConfig()
+    with contextlib.suppress(FileNotFoundError):
+        base_config.RELOAD_SOCKET_PATH.unlink()
+    reload_socket = socket(AF_UNIX, SOCK_STREAM)
+    reload_socket.bind(str(base_config.RELOAD_SOCKET_PATH))
+    reload_socket.listen(1)
+
+    connection, client_addr = reload_socket.accept()
+    try:
+        print("connection from ", client_addr)
+        while True:
+            data = connection.recv(1024)
+            if not data:
+                break
+            result = json.loads(data)
+            if result["event_type"] == "update_views":
+                await hot_replace_templates(result["data"])
+    except Exception as e:  # noqa: BLE001
+        print(e)  # noqa: T201
+
+
+async def hot_replace_templates(changed_paths: list[str]) -> None:
+    try:
+        for str_path in changed_paths:
+            file_path = Path(str_path)
+            str_path = str_path.removesuffix(file_path.suffix)
+            str_path = str_path.replace(os.sep, ".")
+            if str_path in IMPORTS:
+                IMPORTS[str_path] = importlib.reload(IMPORTS[str_path])
+            else:
+                IMPORTS[str_path] = importlib.import_module(str_path)
+                IMPORTS[str_path] = importlib.reload(IMPORTS[str_path])
+
+        logger.warning("reloaded changes")
+        new_views = load_views()
+        logger.warning("loaded views")
+        if new_views is not None:
+            for client in CLIENTS:
+                await client.send_text(
+                    json.dumps({"event_type": "update_views", "data": new_views}),
+                )
+            logger.warning("updated browser")
+        else:
+            logger.warning("no data to update server with")
+    except Exception as e:  # noqa: BLE001
+        print(e)  # noqa: T201
+
+
+class RelaxReload(WatchFilesReload):
+    base_config: BaseConfig
+
+    def __init__(
+        self,
+        config: uvicorn.config.Config,
+        target: Callable[[list[socket] | None], None],
+        sockets: list[socket],
+        base_config: BaseConfig,
+    ) -> None:
+        super().__init__(config, target, sockets)
+        self.base_config = base_config
+
+    def should_restart(self) -> list[Path] | None:
+        changed_paths = super().should_restart()
+        if changed_paths is None:
+            return None
+        changed_templates: list[Path] = []
+        changed_app_files: list[Path] = []
+        for change in changed_paths:
+            try:
+                Path(change).relative_to(self.base_config.TEMPLATES_DIR)
+                changed_templates.append(Path(change).relative_to(Path.cwd()))
+            # we raise ValueError if the path is not in the templates dir
+            except ValueError:
+                changed_app_files.append(change)
+        if len(changed_app_files) > 0:
+            print("changed app files: ", changed_app_files)
+            return changed_app_files
+        if len(changed_templates) > 0:
+            print("changed templates: ", changed_templates)
+            self._update_templates(changed_templates)
+        return None
+
+    def _update_templates(self, changed_templates: list[Path]) -> None:
+        reload_socket = socket(AF_UNIX, SOCK_STREAM)
+        reload_socket.connect(str(self.base_config.RELOAD_SOCKET_PATH))
+        changes = json.dumps(
+            {
+                "event_type": "update_views",
+                "data": [str(change) for change in changed_templates],
+            },
+        ).encode()
+        reload_socket.send(changes)
+
+
 def start_app(app_path: str, port: int | None = None, log_level: str = "info") -> None:
     config = BaseConfig()
 
@@ -414,12 +472,15 @@ def start_app(app_path: str, port: int | None = None, log_level: str = "info") -
     reload_config = uvicorn.Config(
         app=app_path,
         port=port,
-        log_level=log_level,
         factory=True,
         reload=True,
-        reload_excludes=[str(config.TEMPLATES_DIR) + "/*"],
+        log_level=log_level,
     )
     sock = reload_config.bind_socket()
-    reloader = WatchFilesReload(reload_config, target=server.run, sockets=[sock])
-    add_injectable(WatchFilesReload, reloader)
+    reloader = RelaxReload(
+        reload_config,
+        target=server.run,
+        sockets=[sock],
+        base_config=config,
+    )
     reloader.run()

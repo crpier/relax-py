@@ -15,13 +15,22 @@ def cast_to_env(value: str) -> Literal["dev", "prod"]:
     raise ValueError(msg)
 
 
+def cast_abs_path(value: str) -> Path:
+    return Path(value).absolute()
+
+
 class BaseConfig:
     def __init__(self) -> None:
         self.config = starlette.config.Config()
 
-        self.TEMPLATES_DIR = self.config("TEMPLATES_DIR", cast=Path)
+        self.TEMPLATES_DIR = self.config("TEMPLATES_DIR", cast=cast_abs_path)
         self.ENV = self.config("ENV", default="prod", cast=cast_to_env)
-        self.PORT = self.config("ENV", default=443, cast=int)
+        self.PORT = self.config("PORT", default=443, cast=int)
+        self.RELOAD_SOCKET_PATH = self.config(
+            "RELOAD_SOCKET_PATH",
+            default=Path("/tmp/relax-reload"),
+            cast=cast_abs_path,
+        )
 
     def __repr__(self) -> str:
         rep = self.__dict__.copy()
