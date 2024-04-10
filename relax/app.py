@@ -9,7 +9,12 @@ from pathlib import Path
 from types import ModuleType
 
 from pydantic import BaseModel
-from relax.injection import Injected, injectable, COMPONENTS_CACHE_FILE
+from relax.injection import (
+    Injected,
+    injectable,
+    COMPONENTS_CACHE_FILE,
+    _COMPONENT_NAMES,
+)
 from relax.config import BaseConfig
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
@@ -22,6 +27,7 @@ from inspect import Parameter, signature
 from typing import (
     Annotated,
     Any,
+    AsyncGenerator,
     Awaitable,
     Callable,
     ClassVar,
@@ -38,7 +44,7 @@ from typing import (
     get_args,
     get_origin,
 )
-from starlette.datastructures import URL, FormData as BaseFormData
+from starlette.datastructures import URL, UploadFile
 
 import starlette.requests
 import starlette.types
@@ -62,9 +68,6 @@ CLIENTS: set[WebSocket] = set()
 IMPORTS: dict[str, ModuleType] = {}
 
 
-type FormData[T] = Annotated[T, "form_data"]
-
-
 class DataclassInstance(Protocol):
     __dataclass_fields__: ClassVar[dict[str, Field[Any]]]
 
@@ -84,19 +87,6 @@ class HTMLResponse(starlette.responses.HTMLResponse):
         headers: Mapping[str, str] | None = None,
     ) -> None:
         super().__init__(content.render(), status_code, headers)
-
-
-def extract_from_form(form: BaseFormData, data_shape: Type[DataclassT]) -> DataclassT:
-    fields: dict[str, Any] = {}
-    for name, field in data_shape.__dataclass_fields__.items():
-        try:
-            fields[name] = field.type(form[name])
-        except KeyError:
-            if isinstance(field.default, _MISSING_TYPE):
-                raise
-            fields[name] = field.default
-    return data_shape(**fields)
-
 
 
 class AuthScope(StrEnum):
@@ -130,6 +120,25 @@ class Request(starlette.requests.Request, Generic[T]):
             return self.url_for(func.__name__, **kwargs)
 
         return inner
+
+    @contextlib.asynccontextmanager
+    async def parse_form(
+        self,
+        data_shape: Type[DataclassT],
+    ) -> AsyncGenerator[DataclassT, None]:
+        fields: dict[str, Any] = {}
+        async with self.form() as form:
+            for name, field in data_shape.__dataclass_fields__.items():
+                try:
+                    if field.type is UploadFile:
+                        fields[name] = form[name]
+                    else:
+                        fields[name] = field.type(form[name])
+                except KeyError:
+                    if isinstance(field.default, _MISSING_TYPE):
+                        raise
+                    fields[name] = field.default
+            yield data_shape(**fields)
 
 
 class UserType(Protocol):
@@ -265,11 +274,11 @@ class App(Starlette):
         with contextlib.suppress(FileNotFoundError):
             self.config.RELOAD_SOCKET_PATH.unlink()
         print("gonna listen on socket")
-        await asyncio.start_unix_server(
+        self.reload_server = await asyncio.start_unix_server(
             intermediary_hot_replace_templates,
             self.config.RELOAD_SOCKET_PATH,
         )
-        print("started listening on socket")
+        print("started listening on socket: ", self.reload_server.is_serving())
 
 
 class BaseRouter(Protocol):
@@ -328,15 +337,6 @@ class Router(BaseRouter):
                             params[param_name] = param.default
                         else:
                             params[param_name] = args[0](param_value)
-                    elif args and args[1] == "form_data":
-                        form = await request.form()
-                        try:
-                            params[param_name] = extract_from_form(form, args[0])
-                        except KeyError as e:
-                            msg = (
-                                "Field missing from form data for " f"{param_name}: {e}"
-                            )
-                            raise TypeError(msg) from e
                 return await injectable(func)(request, **params)
 
             # TODO: maybe make the name file + fn_name?
@@ -348,6 +348,14 @@ class Router(BaseRouter):
             return inner
 
         return decorator
+
+
+def update_js_constants(config: BaseConfig) -> None:
+    with config.JS_CONSTANTS_PATH.open("w") as f:
+        f.write("export const CONSTANTS = {\n")
+        for name in _COMPONENT_NAMES:
+            f.write(f'   {name.upper().replace("-", "_")}_CLASS: "{name}",\n')
+        f.write("}")
 
 
 async def intermediary_hot_replace_templates(

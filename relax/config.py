@@ -31,6 +31,11 @@ class BaseConfig:
             default=Path("/tmp/relax-reload"),
             cast=cast_abs_path,
         )
+        self.JS_CONSTANTS_PATH = self.config(
+            "JS_CONSTANTS_PATH",
+            default=Path("static/js/constants.js"),
+            cast=Path,
+        )
 
     def __repr__(self) -> str:
         rep = self.__dict__.copy()

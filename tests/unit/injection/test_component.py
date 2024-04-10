@@ -30,14 +30,36 @@ def test_component_id_from_str_key():
 
 
 @injection.component(key="key")
-def helper_component_with_used_id(*, id: str = injection.Injected) -> html.Element:
+def helper_component_with_id_keyword_param(
+    *,
+    id: str = injection.Injected,
+) -> html.Element:
     return html.div(text=id)
 
 
 def test_component_uses_injected_id():
     assert (
-        helper_component_with_used_id().render()
-        == '<div id="helper-component-with-used-id-key" class="helper-component-with-used-id">helper-component-with-used-id-key</div>'  # noqa: E501
+        helper_component_with_id_keyword_param().render()
+        == '<div id="helper-component-with-id-keyword-param-key" class="helper-component-with-id-keyword-param">helper-component-with-id-keyword-param-key</div>'  # noqa: E501
+    )
+
+
+###
+
+
+# although I don't want to officially allow this since it's confusing,
+# let's prove it works with a test
+@injection.component(key="key")
+def helper_component_with_id_pos_param(
+    id: str = injection.Injected,
+) -> html.Element:
+    return html.div(text=id)
+
+
+def test_component_uses_injected_id_kwarg():
+    assert (
+        helper_component_with_id_keyword_param().render()
+        == '<div id="helper-component-with-id-keyword-param-key" class="helper-component-with-id-keyword-param">helper-component-with-id-keyword-param-key</div>'  # noqa: E501
     )
 
 
@@ -54,6 +76,19 @@ def test_component_pos_args_not_allowed_for_component_args():
         helper_component_with_pos_arg_key("some-identifier")
 
 
+###
+
+
+def test_component_pos_args_but_called_with_named_arg_is_allowed():
+    assert (
+        helper_component_with_pos_arg_key(identifier="some-identifier").render()
+        == '<div id="helper-component-with-pos-arg-key-some-identifier" class="helper-component-with-pos-arg-key">some-identifier</div>'  # noqa: E501
+    )
+
+
+###
+
+
 @injection.component(key=lambda identifier: identifier)
 def helper_component_with_kwarg_key(*, identifier: str) -> html.Element:
     return html.div(text=identifier)
@@ -64,6 +99,9 @@ def test_component_id_from_kwarg_key():
         helper_component_with_kwarg_key(identifier="some-identifier").render()
         == '<div id="helper-component-with-kwarg-key-some-identifier" class="helper-component-with-kwarg-key">some-identifier</div>'  # noqa: E501
     )
+
+
+###
 
 
 @injection.component(
