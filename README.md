@@ -1,5 +1,9 @@
 # TODO
 
+Features:
+
+- when signatures of templates are changed, reload the entire app
+
 Document nicety:
 
 - maybe a changelog thingie?

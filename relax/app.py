@@ -1,10 +1,8 @@
+import asyncio
 import contextlib
-from socket import AF_UNIX, SOCK_STREAM, socket
 import logging
-import uvicorn.config
-from uvicorn.supervisors.watchfilesreload import WatchFilesReload
+from starlette.middleware import Middleware
 import importlib
-import uvicorn
 import json
 import os
 from pathlib import Path
@@ -32,6 +30,8 @@ from typing import (
     Literal,
     Mapping,
     Protocol,
+    Self,
+    Sequence,
     Type,
     TypedDict,
     TypeVar,
@@ -97,44 +97,6 @@ def extract_from_form(form: BaseFormData, data_shape: Type[DataclassT]) -> Datac
             fields[name] = field.default
     return data_shape(**fields)
 
-
-def new_decorator(func, auth_scopes: list | None):  # noqa: ANN201, ANN001
-    @wraps(func)
-    @requires(auth_scopes or [])
-    async def inner(request: starlette.requests.Request):  # noqa: ANN202
-        request = Request(request)
-        params: dict[str, Any] = {}
-        request.scope["from_htmx"] = request.headers.get("HX-Request", False) == "true"
-        for param_name, param in signature(func).parameters.items():
-            if (args := get_annotated(param)) and args[1] == "query_param":
-                if (param_value := request.query_params.get(param_name)) is None:
-                    if param.default is inspect._empty:
-                        msg = (
-                            f"parameter {param_name} from function "
-                            f"{func.__name__} has no default value "
-                            "and was not provided in the request"
-                        )
-                        raise TypeError(msg)
-                    params[param_name] = param.default
-                else:
-                    # TODO: also allow something like
-                    # \ Annotated[Path | None, "query_param"] = Path("/")
-                    params[param_name] = args[0](param_value)
-            elif (args := get_annotated(param)) and args[1] == "path_param":
-                if (param_value := request.path_params.get(param_name)) is None:
-                    if param.default is inspect._empty:
-                        msg = (
-                            f"parameter {param_name} from function "
-                            f"{func.__name__} has no default value "
-                            "and was not provided in the request"
-                        )
-                        raise TypeError(msg)
-                    params[param_name] = param.default
-                else:
-                    params[param_name] = args[0](param_value)
-        return await func(request, **params)
-
-    return inner
 
 
 class AuthScope(StrEnum):
@@ -249,10 +211,14 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
 
 class ViewContext:
-    def __init__(self, app: "App") -> None:
-        self._app = app
+    def __init__(self) -> None:
+        self._app: Starlette | None = None
         self.endpoints: dict[Callable, Any] = {}
         self.path_functions: dict[Callable, Callable] = {}
+
+    def attach_to_app(self, app: Starlette) -> Self:
+        self._app = app
+        return self
 
     def add_endpoint(self, sig: Any, endpoint: Callable) -> None:
         self.endpoints[sig] = endpoint
@@ -261,6 +227,9 @@ class ViewContext:
         return self.endpoints[sig]
 
     def add_path_function(self, func: Callable) -> None:
+        if self._app is None:
+            msg = "App instance not set on ViewContext"
+            raise ValueError(msg)
         self.path_functions[func] = partial(self._app.url_path_for, func.__name__)
 
     def url_of(
@@ -271,14 +240,36 @@ class ViewContext:
 
 
 class App(Starlette):
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        self.view_context = ViewContext(self)
+    def __init__(
+        self,
+        view_context: ViewContext,
+        config: BaseConfig,
+        debug: bool = False,
+        middleware: Sequence[Middleware] | None = None,
+        lifespan: starlette.types.Lifespan["App"] | None = None,
+    ) -> None:
+        super().__init__(debug=debug, middleware=middleware, lifespan=lifespan)
+        self.view_context = view_context.attach_to_app(self)
+        self.config = config
 
     def add_router(self, router: "Router") -> None:
         for route in router.routes:
             self.routes.append(route)
             self.view_context.add_path_function(route.endpoint)
+
+    def listen_to_template_changes(self) -> None:
+        print("Listening to template changes for hot-module replacement")
+        self.listen_task = asyncio.create_task(self._listen_to_template_changes())
+
+    async def _listen_to_template_changes(self) -> None:
+        with contextlib.suppress(FileNotFoundError):
+            self.config.RELOAD_SOCKET_PATH.unlink()
+        print("gonna listen on socket")
+        await asyncio.start_unix_server(
+            intermediary_hot_replace_templates,
+            self.config.RELOAD_SOCKET_PATH,
+        )
+        print("started listening on socket")
 
 
 class BaseRouter(Protocol):
@@ -359,24 +350,15 @@ class Router(BaseRouter):
         return decorator
 
 
-async def listen_to_changes() -> None:
-    base_config = BaseConfig()
-    with contextlib.suppress(FileNotFoundError):
-        base_config.RELOAD_SOCKET_PATH.unlink()
-    reload_socket = socket(AF_UNIX, SOCK_STREAM)
-    reload_socket.bind(str(base_config.RELOAD_SOCKET_PATH))
-    reload_socket.listen(1)
-
-    connection, client_addr = reload_socket.accept()
+async def intermediary_hot_replace_templates(
+    sr: asyncio.StreamReader,
+    _: asyncio.StreamWriter,
+) -> None:
     try:
-        print("connection from ", client_addr)
-        while True:
-            data = connection.recv(1024)
-            if not data:
-                break
-            result = json.loads(data)
-            if result["event_type"] == "update_views":
-                await hot_replace_templates(result["data"])
+        data = await sr.read(1024)
+        result = json.loads(data)
+        if result["event_type"] == "update_views":
+            await hot_replace_templates(result["data"])
     except Exception as e:  # noqa: BLE001
         print(e)  # noqa: T201
 
@@ -406,81 +388,3 @@ async def hot_replace_templates(changed_paths: list[str]) -> None:
             logger.warning("no data to update server with")
     except Exception as e:  # noqa: BLE001
         print(e)  # noqa: T201
-
-
-class RelaxReload(WatchFilesReload):
-    base_config: BaseConfig
-
-    def __init__(
-        self,
-        config: uvicorn.config.Config,
-        target: Callable[[list[socket] | None], None],
-        sockets: list[socket],
-        base_config: BaseConfig,
-    ) -> None:
-        super().__init__(config, target, sockets)
-        self.base_config = base_config
-
-    def should_restart(self) -> list[Path] | None:
-        changed_paths = super().should_restart()
-        if changed_paths is None:
-            return None
-        changed_templates: list[Path] = []
-        changed_app_files: list[Path] = []
-        for change in changed_paths:
-            try:
-                Path(change).relative_to(self.base_config.TEMPLATES_DIR)
-                changed_templates.append(Path(change).relative_to(Path.cwd()))
-            # we raise ValueError if the path is not in the templates dir
-            except ValueError:
-                changed_app_files.append(change)
-        if len(changed_app_files) > 0:
-            print("changed app files: ", changed_app_files)
-            return changed_app_files
-        if len(changed_templates) > 0:
-            print("changed templates: ", changed_templates)
-            self._update_templates(changed_templates)
-        return None
-
-    def _update_templates(self, changed_templates: list[Path]) -> None:
-        reload_socket = socket(AF_UNIX, SOCK_STREAM)
-        reload_socket.connect(str(self.base_config.RELOAD_SOCKET_PATH))
-        changes = json.dumps(
-            {
-                "event_type": "update_views",
-                "data": [str(change) for change in changed_templates],
-            },
-        ).encode()
-        reload_socket.send(changes)
-
-
-def start_app(app_path: str, port: int | None = None, log_level: str = "info") -> None:
-    config = BaseConfig()
-
-    if port is None:
-        port = config.PORT
-
-    server_config = uvicorn.Config(
-        app=app_path,
-        port=port,
-        log_level=log_level,
-        factory=True,
-    )
-
-    server = uvicorn.Server(server_config)
-
-    reload_config = uvicorn.Config(
-        app=app_path,
-        port=port,
-        factory=True,
-        reload=True,
-        log_level=log_level,
-    )
-    sock = reload_config.bind_socket()
-    reloader = RelaxReload(
-        reload_config,
-        target=server.run,
-        sockets=[sock],
-        base_config=config,
-    )
-    reloader.run()

@@ -721,7 +721,6 @@ class aside(Tag):
     name = "aside"
 
 
-# TODO: expose a hook, or handle updating elements some other way
 def hmr_script() -> list[script]:
     file_path = sys.modules[__name__].__file__
     if file_path is None:

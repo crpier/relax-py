@@ -123,6 +123,10 @@ def add_injectable(annotation: Hashable, injectable: object) -> None:
     _INJECTS[annotation] = injectable
 
 
+def retrieve_injectable(annotation: Hashable) -> object:
+    return _INJECTS[annotation]
+
+
 def component(
     key: Callable[..., str] | str | None = None,
 ) -> Callable[[Callable[_P, Element]], Callable[_P, Component]]:
@@ -164,7 +168,11 @@ def component(
             except (TypeError, FileNotFoundError):
                 current_views = {}
             view_key = f"{func.__module__}.{func.__name__}"
-            current_views[elem_id] = {"path": view_key, "data": data}
+            current_views[elem_id] = {
+                "path": view_key,
+                "data": data,
+                "signature": str(signature(func)),
+            }
             with COMPONENTS_CACHE_FILE.open("w") as f:
                 json.dump(current_views, f)
             return func_call_result.set_id(elem_id).classes([component_name])
