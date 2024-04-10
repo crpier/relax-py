@@ -1,14 +1,15 @@
 import logging
+from uvicorn.supervisors.watchfilesreload import WatchFilesReload
 import importlib
+import uvicorn
 import json
-import asyncio
 import os
 from pathlib import Path
-import threading
 from types import ModuleType
 
 from pydantic import BaseModel
-from relax.injection import Injected, injectable, COMPONENTS_CACHE_FILE
+from relax.injection import Injected, injectable, COMPONENTS_CACHE_FILE, add_injectable
+from relax.config import BaseConfig
 from starlette.websockets import WebSocket, WebSocketDisconnect
 from watchfiles import awatch
 
@@ -25,7 +26,6 @@ from typing import (
     Callable,
     ClassVar,
     Concatenate,
-    Coroutine,
     Generic,
     Literal,
     Mapping,
@@ -55,6 +55,10 @@ PathStr = Annotated[str, "path_param"]
 
 P = ParamSpec("P")
 T = TypeVar("T")
+
+CLIENTS: set[WebSocket] = set()
+IMPORTS: dict[str, ModuleType] = {}
+
 
 type FormData[T] = Annotated[T, "form_data"]
 
@@ -190,10 +194,6 @@ def get_annotated(param: Parameter) -> Any:
     return None
 
 
-CLIENTS: set[WebSocket] = set()
-IMPORTS: dict[str, ModuleType] = {}
-
-
 async def hot_replace_templates(templates_dir: str) -> None:
     try:
         async for changes in awatch(templates_dir):
@@ -253,6 +253,7 @@ def load_views() -> dict | None:
                 IMPORTS[fn_module] = importlib.import_module(fn_module)
             fn = getattr(IMPORTS[fn_module], fn_name)
 
+            # TODO: if we can't find the function referenced in the data, drop it
             for name, param in signature(fn).parameters.items():
                 try:
                     if (
@@ -279,29 +280,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     try:
         while True:
             data = await websocket.receive_text()
-            logger.warning("got new data")
-            global VIEWS_DATA  # noqa: PLW0603
-            VIEWS_DATA = data
-            # Echo received message to all connected CLIENTS
+            logger.warning("got new data: %s", data)
     except WebSocketDisconnect:
         CLIENTS.remove(websocket)
-
-
-class RelaxRoute:
-    def __init__(
-        self,
-        path: str,
-        method: Method,
-        endpoint: Callable[Concatenate[Request, P], Awaitable[Any]],
-        # TODO: runtime validation of the signature
-        sig: Type[Callable[P, Any]] | None = None,
-        auth_scopes: list[AuthScope] | None = None,
-    ) -> None:
-        self.path = path
-        self.endpoint = endpoint
-        self.method = method
-        self.auth_scopes = auth_scopes
-        self.sig = sig
 
 
 class ViewContext:
@@ -326,9 +307,7 @@ class ViewContext:
         return self.path_functions[func]  # type: ignore
 
 
-class App(Starlette, Generic[T]):
-    config: T
-
+class App(Starlette):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.view_context = ViewContext(self)
@@ -337,33 +316,6 @@ class App(Starlette, Generic[T]):
         for route in router.routes:
             self.routes.append(route)
             self.view_context.add_path_function(route.endpoint)
-
-    def add_routes(self, routes: list[RelaxRoute]) -> None:
-        for route in routes:
-            # TODO: maybe make the name file + fn_name?
-            # TODO: also, error out when finding a duplicate name
-            route_name = route.endpoint.__name__
-            new_route = Route(
-                path=route.path,
-                endpoint=new_decorator(route.endpoint, route.auth_scopes),
-                methods=[route.method],
-                name=route_name,
-            )
-            self.routes.append(new_route)
-            if route.sig:
-                lol = partial(self.url_path_for, route_name)
-                self.view_context.add_endpoint(sig=route.sig, endpoint=lol)
-
-
-def run_async(coro: Coroutine) -> Any:
-    _loop = asyncio.new_event_loop()
-
-    _thr = threading.Thread(target=_loop.run_forever, name="Async Runner", daemon=True)
-
-    if not _thr.is_alive():
-        _thr.start()
-    future = asyncio.run_coroutine_threadsafe(coro, _loop)
-    return future.result()
 
 
 class BaseRouter(Protocol):
@@ -442,3 +394,32 @@ class Router(BaseRouter):
             return inner
 
         return decorator
+
+
+def start_app(app_path: str, port: int | None = None, log_level: str = "info") -> None:
+    config = BaseConfig()
+
+    if port is None:
+        port = config.PORT
+
+    server_config = uvicorn.Config(
+        app=app_path,
+        port=port,
+        log_level=log_level,
+        factory=True,
+    )
+
+    server = uvicorn.Server(server_config)
+
+    reload_config = uvicorn.Config(
+        app=app_path,
+        port=port,
+        log_level=log_level,
+        factory=True,
+        reload=True,
+        reload_excludes=[str(config.TEMPLATES_DIR) + "/*"],
+    )
+    sock = reload_config.bind_socket()
+    reloader = WatchFilesReload(reload_config, target=server.run, sockets=[sock])
+    add_injectable(WatchFilesReload, reloader)
+    reloader.run()

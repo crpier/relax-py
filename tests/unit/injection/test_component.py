@@ -2,6 +2,8 @@ import pytest
 from relax import injection
 from relax import html
 
+# TODO: prevent cache file from being written
+
 
 @injection.component()
 def helper_component() -> html.Element:
@@ -9,7 +11,10 @@ def helper_component() -> html.Element:
 
 
 def test_component_id_from_function_name():
-    assert helper_component().render() == '<div id="helper-component">helper</div>'
+    assert (
+        helper_component().render()
+        == '<div id="helper-component" class="helper-component">helper</div>'
+    )
 
 
 @injection.component(key="key")
@@ -20,7 +25,7 @@ def helper_component_with_str_key() -> html.Element:
 def test_component_id_from_str_key():
     assert (
         helper_component_with_str_key().render()
-        == '<div id="helper-component-with-str-key-key">helper</div>'
+        == '<div id="helper-component-with-str-key-key" class="helper-component-with-str-key">helper</div>'  # noqa: E501
     )
 
 
@@ -32,7 +37,7 @@ def helper_component_with_used_id(*, id: str = injection.Injected) -> html.Eleme
 def test_component_uses_injected_id():
     assert (
         helper_component_with_used_id().render()
-        == '<div id="helper-component-with-used-id-key">helper-component-with-used-id-key</div>'  # noqa: E501
+        == '<div id="helper-component-with-used-id-key" class="helper-component-with-used-id">helper-component-with-used-id-key</div>'  # noqa: E501
     )
 
 
@@ -57,7 +62,7 @@ def helper_component_with_kwarg_key(*, identifier: str) -> html.Element:
 def test_component_id_from_kwarg_key():
     assert (
         helper_component_with_kwarg_key(identifier="some-identifier").render()
-        == '<div id="helper-component-with-kwarg-key-some-identifier">some-identifier</div>'  # noqa: E501
+        == '<div id="helper-component-with-kwarg-key-some-identifier" class="helper-component-with-kwarg-key">some-identifier</div>'  # noqa: E501
     )
 
 
@@ -78,7 +83,7 @@ def test_component_id_from_multiple_kwarg_keys():
             identifier="some-identifier",
             second_ident="second-identifier",
         ).render()
-        == '<div id="helper-component-with-multiple-kwarg-keys-some-identifier-second-identifier">some-identifier.second-identifier</div>'  # noqa: E501
+        == '<div id="helper-component-with-multiple-kwarg-keys-some-identifier-second-identifier" class="helper-component-with-multiple-kwarg-keys">some-identifier.second-identifier</div>'  # noqa: E501
     )
 
 
@@ -111,5 +116,5 @@ def helper_component_with_injection(
 def test_component_with_injection():
     assert (
         helper_component_with_injection(identifier="some-identifier").render()
-        == '<div id="helper-component-with-injection-some-identifier">some-identifier-default</div>'  # noqa: E501
+        == '<div id="helper-component-with-injection-some-identifier" class="helper-component-with-injection">some-identifier-default</div>'  # noqa: E501
     )

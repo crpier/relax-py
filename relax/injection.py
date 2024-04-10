@@ -167,7 +167,7 @@ def component(
             current_views[elem_id] = {"path": view_key, "data": data}
             with COMPONENTS_CACHE_FILE.open("w") as f:
                 json.dump(current_views, f)
-            return func_call_result.set_id(elem_id)
+            return func_call_result.set_id(elem_id).classes([component_name])
 
         return inner
 
