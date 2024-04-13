@@ -126,6 +126,10 @@ def add_injectable(annotation: Hashable, injectable: object) -> None:
 def retrieve_injectable(annotation: Hashable) -> object:
     return _INJECTS[annotation]
 
+def clear_injections() -> None:
+    return _INJECTS.clear()
+
+
 
 def component(
     key: Callable[..., str] | str | None = None,
