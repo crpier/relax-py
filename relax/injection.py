@@ -60,7 +60,6 @@ Injected: Any = _Injected
 _P = ParamSpec("_P")
 _T = TypeVar("_T")
 
-# TODO: rm this on shutdown
 COMPONENTS_CACHE_FILE = Path("/tmp/relax_components.json")
 _COMPONENT_NAMES: list[str] = []
 

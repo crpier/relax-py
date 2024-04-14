@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "relax-py"
-version = "0.0.13"
+version = "0.0.14"
 description = ""
 authors = ["crpier <crpier42@gmail.com>"]
 readme = "README.md"
@@ -14,7 +14,7 @@ beautifulsoup4 = "^4.12.2"
 starlette = "^0.31.1"
 typing-extensions = "^4.8.0"
 watchfiles = "^0.21.0"
-uvicorn = "^0.29.0"
+uvicorn = {extras = ["standard"], version = "^0.29.0"}
 
 
 [tool.poetry.group.dev.dependencies]

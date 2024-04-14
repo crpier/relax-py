@@ -330,7 +330,7 @@ class Fragment(Tag):
 
     def __init__(
         self,
-        children: Sequence[Element] | None,
+        children: Sequence[Element | None] | None,
     ) -> None:
         super().__init__()
         self.insert(children)
@@ -467,29 +467,15 @@ class label(Tag):
 
     def __init__(
         self,
-        _for: str,
+        _for: str | None = None,
         classes: list[str] | None = None,
         attrs: dict | None = None,
         id: str | None = None,
         hyperscript: str | None = None,
     ) -> None:
         super().__init__(classes=classes, attrs=attrs, id=id, hyperscript=hyperscript)
-        self._attributes["for"] = _for
-
-    def render(self) -> str:
-        if not self._parent:
-            warnings.warn(
-                f'"{self.name}" element should have a sibling "input"',
-                stacklevel=2,
-            )
-        if self._parent and all(
-            sibling.name not in ["input"] for sibling in self._parent._children
-        ):
-            warnings.warn(
-                f'"{self.name}" element should have a sibling "input"',
-                stacklevel=2,
-            )
-        return super().render()
+        if _for is not None:
+            self._attributes["for"] = _for
 
 
 class svg(Tag):
@@ -720,6 +706,32 @@ class html(Tag):
 class aside(Tag):
     name = "aside"
 
+class details(Tag):
+    name = "details"
+
+class summary(Tag):
+    name = "summary"
+
+class dialog(Tag):
+    name = "dialog"
+
+class h1(Tag):
+    name = "h1"
+
+
+class h2(Tag):
+    name = "h2"
+
+
+class h3(Tag):
+    name = "h3"
+
+
+class h4(Tag):
+    name = "h4"
+
+class h5(Tag):
+    name = "h5"
 
 def hmr_script() -> list[script]:
     file_path = sys.modules[__name__].__file__

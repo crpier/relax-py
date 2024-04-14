@@ -192,7 +192,7 @@ def load_views() -> dict | None:
                 try:
                     if (
                         param.default is not Injected
-                        and isinstance(fn_values[name], dict)
+                        and isinstance(fn_values.get(name), dict)
                         and issubclass(param.annotation, BaseModel)
                     ):
                         model_obj = fn_values[name]
@@ -202,7 +202,7 @@ def load_views() -> dict | None:
 
             updated_views[id] = fn(**fn_values).render()
     except Exception as e:  # noqa: BLE001
-        logger.warning("failed loading views: %s", e)
+        logger.warning("failed loading views: %s", repr(e))
         return None
     return updated_views
 

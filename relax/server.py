@@ -103,6 +103,7 @@ def start_app(
     app_path: str,
     config: BaseConfig,
     *,
+    host: str = "127.0.0.1",
     port: int | None = None,
     reload: bool = False,
     log_level: str = "info",
@@ -112,6 +113,7 @@ def start_app(
 
     server_config = uvicorn.Config(
         app=app_path,
+        host=host,
         port=port,
         log_level=log_level,
         factory=True,
@@ -122,6 +124,7 @@ def start_app(
     if reload:
         reload_config = uvicorn.Config(
             app=app_path,
+            host=host,
             port=port,
             factory=True,
             reload=True,

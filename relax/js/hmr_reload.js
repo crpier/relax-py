@@ -14,6 +14,10 @@ function addSocketListeners(socket) {
       let newElems = event.data;
       for (const [id, replacer] of Object.entries(newElems)) {
         let replaced = document.getElementById(id);
+        if (!replaced) {
+          console.error(`Element with id ${id} not found`);
+          continue;
+        }
         Idiomorph.morph(replaced, replacer);
       }
     }
