@@ -9,6 +9,8 @@ from pathlib import Path
 from types import ModuleType
 
 from pydantic import BaseModel
+from pydantic.dataclasses import is_pydantic_dataclass
+
 from relax.injection import (
     Injected,
     injectable,
@@ -20,7 +22,7 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 
 
 import inspect
-from dataclasses import Field, _MISSING_TYPE
+from dataclasses import Field, _MISSING_TYPE, is_dataclass
 from enum import StrEnum, auto
 from functools import partial, wraps
 from inspect import Parameter, signature
@@ -38,7 +40,6 @@ from typing import (
     Protocol,
     Self,
     Sequence,
-    Type,
     TypedDict,
     TypeVar,
     get_args,
@@ -72,7 +73,7 @@ class DataclassInstance(Protocol):
     __dataclass_fields__: ClassVar[dict[str, Field[Any]]]
 
 
-DataclassT = TypeVar("DataclassT", bound=DataclassInstance)
+DataclassT = TypeVar("DataclassT", bound=[DataclassInstance, BaseModel])
 
 Method = Literal["GET", "POST", "PUT", "DELETE", "PATCH"]
 
@@ -124,21 +125,26 @@ class Request(starlette.requests.Request, Generic[T]):
     @contextlib.asynccontextmanager
     async def parse_form(
         self,
-        data_shape: Type[DataclassT],
+        data_shape: type[DataclassT],
     ) -> AsyncGenerator[DataclassT, None]:
         fields: dict[str, Any] = {}
         async with self.form() as form:
-            for name, field in data_shape.__dataclass_fields__.items():
-                try:
-                    if field.type is UploadFile:
-                        fields[name] = form[name]
-                    else:
-                        fields[name] = field.type(form[name])
-                except KeyError:
-                    if isinstance(field.default, _MISSING_TYPE):
-                        raise
-                    fields[name] = field.default
-            yield data_shape(**fields)
+            if issubclass(data_shape, BaseModel):
+                yield data_shape.model_validate(form)
+            elif is_dataclass(data_shape):
+                for name, field in data_shape.__dataclass_fields__.items():
+                    try:
+                        if field.type is UploadFile:
+                            fields[name] = form[name]
+                        else:
+                            fields[name] = field.type(form[name])
+                    except KeyError:
+                        if isinstance(field.default, _MISSING_TYPE):
+                            raise
+                        fields[name] = field.default
+                yield data_shape(**fields)
+            else:
+                raise TypeError("data_shape for form must be a pydantic model or a dataclass")
 
 
 class UserType(Protocol):
@@ -232,7 +238,7 @@ class ViewContext:
     def add_endpoint(self, sig: Any, endpoint: Callable) -> None:
         self.endpoints[sig] = endpoint
 
-    def endpoint(self, sig: Type[T]) -> T:
+    def endpoint(self, sig: type[T]) -> T:
         return self.endpoints[sig]
 
     def add_path_function(self, func: Callable) -> None:

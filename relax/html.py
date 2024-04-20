@@ -733,6 +733,9 @@ class h4(Tag):
 class h5(Tag):
     name = "h5"
 
+class figure(Tag):
+    name = "figure"
+
 def hmr_script() -> list[script]:
     file_path = sys.modules[__name__].__file__
     if file_path is None:

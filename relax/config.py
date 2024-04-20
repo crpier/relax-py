@@ -23,6 +23,7 @@ class BaseConfig:
     def __init__(self) -> None:
         self.config = starlette.config.Config()
 
+        # TODO: make it so that this is optional in PROD
         self.TEMPLATES_DIR = self.config("TEMPLATES_DIR", cast=cast_abs_path)
         self.ENV = self.config("ENV", default="prod", cast=cast_to_env)
         self.PORT = self.config("PORT", default=443, cast=int)
