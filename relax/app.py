@@ -9,7 +9,6 @@ from pathlib import Path
 from types import ModuleType
 
 from pydantic import BaseModel
-from pydantic.dataclasses import is_pydantic_dataclass
 
 from relax.injection import (
     Injected,
@@ -144,7 +143,9 @@ class Request(starlette.requests.Request, Generic[T]):
                         fields[name] = field.default
                 yield data_shape(**fields)
             else:
-                raise TypeError("data_shape for form must be a pydantic model or a dataclass")
+                raise TypeError(
+                    "data_shape for form must be a pydantic model or a dataclass"
+                )
 
 
 class UserType(Protocol):
@@ -383,6 +384,7 @@ async def hot_replace_templates(changed_paths: list[str]) -> None:
             file_path = Path(str_path)
             str_path = str_path.removesuffix(file_path.suffix)
             str_path = str_path.replace(os.sep, ".")
+            str_path = str_path.removesuffix(".__init__")
             if str_path in IMPORTS:
                 IMPORTS[str_path] = importlib.reload(IMPORTS[str_path])
             else:
