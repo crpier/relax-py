@@ -127,6 +127,7 @@ def page_root(child: Element) -> Element:
     )
 
 
+@component(key=lambda name: name)
 def greeting_template(name: str) -> Element:
     return div(
         classes=["m-auto", "bg-blue-200", "p-2", "w-max", "rounded-md"],
@@ -251,6 +252,28 @@ Because `relax` needs all the template functions to be in a single folder, and i
 Since we only have one file with templates, we can put them all in the `__init__.py` file, but in a real project, you'll likely have multiple files in the directory.
 
 ```py
+@component(key=lambda name: name)
+def greeting_template(name: str) -> Element:
+```
+
+The `@component` decorator provides a few benefits to our templates:
+
+- ensures hot module replacement
+    - only HTML code that falls under a `@component` decorator will be reloaded
+    - so, if there's a `@component` template function that calls a non-decorated template function, you'll still get hot module replacement
+- automatically generates an `id` for the returned HTML element
+    - the `key` parameter of the decorator can be used to guarantee the uniqueness of the component
+        - might seem similar to how `key` is used in loops in React, but here is at a global level
+        - in this case, the `key` is a lambda function that takes the same `name` parameter as the `greeting_template` function, and outputs a string that should be unique to that component.
+          - this is very useful when the component takes an object as a parameter, such as a `pydantic` object
+    - the `id` of each element can be injected as a parameter
+- automatically generates a CSS class that identifies the returned HTML element
+    - while not used in this example, these can be automatically inserted into a `CONSTANTS.js` file with the `update_js_constants` function
+    - this makes server-python <-> client-javascript interoperability a little nicer
+- provides dependency injection, in the same way the `@path_function`, `@injectable`, and `@injectable_sync` decorators do
+
+
+```py
 def page_root(child: Element) -> Element:
 ```
 
@@ -284,24 +307,6 @@ return div(
 We define CSS classes as strings in a list.  
 This makes it easier to reuse them, override them in other elements (in `tailwind` you can prepend `!` to a class to make it `!important`) and lets formatters handle line lengths.  
 This would also make it easier to implement, in a potential future version, something like [tailwind-merge](https://github.com/dcastil/tailwind-merge)
-
-```py
-@component()
-def home_page(*, context: ViewContext = Injected, id: str = Injected) -> Element:
-```
-
-The `@component` decorator provides a few benefits to our templates:
-
-- ensures hot module replacement
-    - only HTML code that falls under a `@component` decorator will be reloaded
-    - so, if there's a `@component` template function that calls a non-decorated template function, you'll still get hot module replacement
-- automatically generates an `id` for the returned HTML element
-    - the `@component` decorator has options that allow you to ensure the uniquness of the `id` across the app
-    - the `id` of each element can be injected as a parameter
-- automatically generates a CSS class that identifies the returned HTML element
-    - while not used in this example, these can be automatically inserted into a `CONSTANTS.js` file with the `update_js_constants` function
-    - this makes server-python <-> client-javascript interoperability a little nicer
-- provides dependency injection, in the same way the `@path_function`, `@injectable`, and `@injectable_sync` decorators do
 
 ```py
 name = "World"
