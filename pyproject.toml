@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "relax-py"
-version = "0.0.15"
+version = "0.6.0"
 description = ""
 authors = ["crpier <crpier42@gmail.com>"]
 readme = "README.md"
