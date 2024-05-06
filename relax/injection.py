@@ -4,33 +4,38 @@ import warnings
 from collections.abc import Callable
 from functools import wraps
 from inspect import _ParameterKind, signature
-from typing import Any, Awaitable, Hashable, ParamSpec, TypeVar, Protocol, Self
+from typing import Any, Awaitable, ParamSpec, TypeVar, Protocol, Self
 
 from relax.html import Component, Element
 
 """
-A simple dependency injection framework.
+A simple dependency injection helper.
 
-Decorate functions that need to be injected with `@injectable` and
-annotate the parameters that need to be injected with `Injected`.
+Decorate functions that need to be injected with `@injectable`
+set the default value of params that need to be injecte to `Injected`.
 
 Note: Injected parameters must be keyword-only.
 
 Example:
 ```python
-@injectable
+from relax.injection import add_injectable, Injected, injectable_sync
+
+@injectable_sync
 def do_print(
-    foo: str = "default",
+    from_args: str = "string with default value",
     *,
-    bar: Annotated[str, Injected],
+    from_injection: str = Injected,
 ) -> None:
-    print(foo)
-    print(bar)
+    print(from_args)
+    print(from_injection)
+
+add_injectable(str, "injected string")
+do_print()
 ```
-Running `do_print()` print
+Running this will print:
 ```
-default
-weird
+string with default value
+injected string
 ```
 """
 
@@ -47,7 +52,7 @@ class DoubleInjectionError(Exception):
     ...
 
 
-_INJECTS: dict[Hashable, object] = {}
+_INJECTS: dict[object, object] = {}
 
 
 class _Injected:
@@ -115,19 +120,19 @@ def injectable_sync(func: Callable[_P, _T]) -> Callable[_P, _T]:
     return inner
 
 
-def add_injectable(annotation: Hashable, injectable: object) -> None:
+def add_injectable(annotation: object, injectable: object) -> None:
     if annotation in _INJECTS:
         msg = f"Injectable {annotation} already added"
         raise DoubleInjectionError(msg)
     _INJECTS[annotation] = injectable
 
 
-def retrieve_injectable(annotation: Hashable) -> object:
+def retrieve_injectable(annotation: type[_T]) -> _T:
     return _INJECTS[annotation]
+
 
 def clear_injections() -> None:
     return _INJECTS.clear()
-
 
 
 def component(

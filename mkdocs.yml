@@ -1,7 +1,9 @@
 site_name: relax-py
+repo_url: https://github.com/crpier/relax-py
+repo_name: relax-py
 nav:
   - Home: index.md
-  - About: about.md
+  - Other: other.md
 theme:
   name: material
   palette:
