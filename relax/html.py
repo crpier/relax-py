@@ -27,8 +27,7 @@ ButtonType = Literal["button", "submit", "reset"]
 HTMXRequestType = Literal["get", "post", "put", "delete"]
 
 
-class InvalidHTMLError(Exception):
-    ...
+class InvalidHTMLError(Exception): ...
 
 
 T = TypeVar("T")
@@ -38,21 +37,16 @@ class Element(Protocol):
     _parent: "Tag | None"
     name: str
 
-    def render(self) -> str:
-        ...
+    def render(self) -> str: ...
 
-    def set_id(self, value: str) -> Self:
-        ...
+    def set_id(self, value: str) -> Self: ...
 
     @property
-    def id(self) -> str | None:
-        ...
+    def id(self) -> str | None: ...
 
-    def classes(self, classes: list[str]) -> Self:
-        ...
+    def classes(self, classes: list[str]) -> Self: ...
 
-    def attrs(self, attrs: dict) -> Self:
-        ...
+    def attrs(self, attrs: dict) -> Self: ...
 
     def hx_get(
         self,
@@ -71,14 +65,12 @@ class Element(Protocol):
         ]
         | None = None,
         **kwargs: str,
-    ) -> Self:
-        ...
+    ) -> Self: ...
 
 
 class Component(Element, Protocol):
     @property
-    def id(self) -> str:
-        ...
+    def id(self) -> str: ...
 
 
 class SelfClosingTag(Element):
@@ -706,14 +698,18 @@ class html(Tag):
 class aside(Tag):
     name = "aside"
 
+
 class details(Tag):
     name = "details"
+
 
 class summary(Tag):
     name = "summary"
 
+
 class dialog(Tag):
     name = "dialog"
+
 
 class h1(Tag):
     name = "h1"
@@ -730,11 +726,14 @@ class h3(Tag):
 class h4(Tag):
     name = "h4"
 
+
 class h5(Tag):
     name = "h5"
 
+
 class figure(Tag):
     name = "figure"
+
 
 def hmr_script() -> list[script]:
     file_path = sys.modules[__name__].__file__

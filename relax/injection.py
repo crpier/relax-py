@@ -40,23 +40,19 @@ injected string
 """
 
 
-class MissingDependencyError(Exception):
-    ...
+class MissingDependencyError(Exception): ...
 
 
-class IncorrectInjectableSignatureError(Exception):
-    ...
+class IncorrectInjectableSignatureError(Exception): ...
 
 
-class DoubleInjectionError(Exception):
-    ...
+class DoubleInjectionError(Exception): ...
 
 
 _INJECTS: dict[object, object] = {}
 
 
-class _Injected:
-    ...
+class _Injected: ...
 
 
 Injected: Any = _Injected
@@ -70,15 +66,13 @@ _COMPONENT_NAMES: list[str] = []
 
 
 class Jsonable(Protocol):
-    def model_dump_json(self) -> str:
-        ...
+    def model_dump_json(self) -> str: ...
 
     @classmethod
     def model_validate_json(
         cls,
         json_data: str | bytes | bytearray,
-    ) -> Self:
-        ...
+    ) -> Self: ...
 
 
 def inject_into_kwargs(func: Callable, kwargs: Any) -> None:

@@ -44,7 +44,7 @@ from typing import (
     get_args,
     get_origin,
 )
-from starlette.datastructures import URL, UploadFile
+from starlette.datastructures import URL, UploadFile, URLPath
 
 import starlette.requests
 import starlette.types
@@ -55,6 +55,7 @@ from starlette.routing import Route
 from typing_extensions import ParamSpec
 
 import relax.html
+from html import escape
 
 QueryStr = Annotated[str, "query_param"]
 QueryInt = Annotated[int, "query_param"]
@@ -144,7 +145,7 @@ class Request(starlette.requests.Request, Generic[T]):
                 yield data_shape(**fields)
             else:
                 raise TypeError(
-                    "data_shape for form must be a pydantic model or a dataclass"
+                    "data_shape for form must be a pydantic model or a dataclass",
                 )
 
 
@@ -242,11 +243,48 @@ class ViewContext:
     def endpoint(self, sig: type[T]) -> T:
         return self.endpoints[sig]
 
+    def get_path_from_function_call(
+        self,
+        func_name: str,
+        func: Callable,
+        **kwargs: Any,
+    ) -> URLPath:
+        if self._app is None:
+            msg = "App instance not set on ViewContext"
+            raise ValueError(msg)
+        query_params: dict[str, Any] = {}
+        for name, param in signature(func).parameters.items():
+            if name == "request":
+                continue
+            args = get_annotated(param)
+            if args and args[1] == "query_param":
+                try:
+                    query_params[name] = kwargs.pop(name)
+                except KeyError as e:
+                    msg = f"missing query parameter {name} for {func_name}"
+                    raise ValueError(msg) from e
+        base_url = self._app.url_path_for(func_name, **kwargs)
+        if query_params != {}:
+            for idx, (name, param) in enumerate(query_params.items()):
+                if idx == 0:
+                    base_url = URLPath(
+                        f"{base_url}?{name}={escape(str(param), quote=True)}",
+                    )
+                else:
+                    base_url = URLPath(
+                        f"{base_url}&{name}={escape(str(param), quote=True)}",
+                    )
+        return base_url
+
     def add_path_function(self, func: Callable) -> None:
         if self._app is None:
             msg = "App instance not set on ViewContext"
             raise ValueError(msg)
-        self.path_functions[func] = partial(self._app.url_path_for, func.__name__)
+        self.path_functions[func] = partial(
+            self.get_path_from_function_call,
+            func_name=func.__name__,
+            func=func,
+        )
 
     def url_of(
         self,
@@ -288,8 +326,7 @@ class App(Starlette):
         print("started listening on socket: ", self.reload_server.is_serving())
 
 
-class BaseRouter(Protocol):
-    ...
+class BaseRouter(Protocol): ...
 
 
 class Router(BaseRouter):

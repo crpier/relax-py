@@ -73,6 +73,10 @@ class RelaxReload(WatchFilesReload):
     def get_new_reload_socket(self, retries: int = 0) -> socket:
         self.reload_socket = socket(AF_UNIX, SOCK_STREAM)
         self.reload_socket.settimeout(5)
+        if self.base_config.RELOAD_SOCKET_PATH.parent.exists():
+            self.base_config.RELOAD_SOCKET_PATH.parent.mkdir(
+                parents=True, exist_ok=True
+            )
         try:
             self.reload_socket.connect(str(self.base_config.RELOAD_SOCKET_PATH))
         except ConnectionRefusedError:
