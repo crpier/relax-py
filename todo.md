@@ -17,3 +17,4 @@ Todos:
   - inline scripts
   - scripts from /static dir
 - when signatures of templates are changed, reload the entire app
+- only open cache file when in dev mode
