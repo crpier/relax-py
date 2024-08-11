@@ -8,7 +8,6 @@ import json
 from pathlib import Path
 
 from relax.config import BaseConfig
-from relax.injection import COMPONENTS_CACHE_FILE
 
 
 from typing import (
@@ -62,12 +61,7 @@ class RelaxReload(WatchFilesReload):
             self.reload_socket.close()
         return super().shutdown()
 
-    def run(self, *, remove_components_cache_on_startup: bool = True) -> None:
-        if remove_components_cache_on_startup:
-            with contextlib.suppress(FileNotFoundError):
-                COMPONENTS_CACHE_FILE.unlink()
-            with COMPONENTS_CACHE_FILE.open("w") as f:
-                json.dump({}, f)
+    def run(self) -> None:
         return super().run()
 
     def get_new_reload_socket(self, retries: int = 0) -> socket:

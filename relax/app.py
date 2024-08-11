@@ -176,12 +176,12 @@ def get_annotated(param: Parameter) -> Any:
 
 
 def load_views() -> dict | None:
-    with COMPONENTS_CACHE_FILE.open("r") as f:
-        try:
-            raw_data = json.load(f)
-        except TypeError:
-            logger.exception("failed parsing JSON data")
-            raise
+    try:
+        raw_data = json.load(COMPONENTS_CACHE_FILE)
+        COMPONENTS_CACHE_FILE.seek(0)
+    except TypeError:
+        logger.exception("failed parsing JSON data")
+        raise
 
     updated_views = {}
 

@@ -62,6 +62,13 @@ _P = ParamSpec("_P")
 _T = TypeVar("_T")
 
 COMPONENTS_CACHE_FILE = Path("/tmp/relax_components.json")
+if not COMPONENTS_CACHE_FILE.exists():
+    COMPONENTS_CACHE_FILE.touch()
+COMPONENTS_CACHE_FILE = COMPONENTS_CACHE_FILE.open("r+")
+COMPONENTS_CACHE_FILE.seek(0)
+COMPONENTS_CACHE_FILE.truncate()
+COMPONENTS_CACHE_FILE.write("{}")
+COMPONENTS_CACHE_FILE.seek(0)
 _COMPONENT_NAMES: list[str] = []
 
 
@@ -165,8 +172,8 @@ def component(
             data = {key: to_json(val) for (key, val) in kwargs.items()}
             # TODO: find a way to do this only in dev mode
             try:
-                with COMPONENTS_CACHE_FILE.open() as f:
-                    current_views = json.load(f)
+                current_views = json.load(COMPONENTS_CACHE_FILE)
+                COMPONENTS_CACHE_FILE.seek(0)
             except (TypeError, FileNotFoundError):
                 current_views = {}
             view_key = f"{func.__module__}.{func.__name__}"
@@ -175,8 +182,10 @@ def component(
                 "data": data,
                 "signature": str(signature(func)),
             }
-            with COMPONENTS_CACHE_FILE.open("w") as f:
-                json.dump(current_views, f)
+            COMPONENTS_CACHE_FILE.truncate()
+            json.dump(current_views, COMPONENTS_CACHE_FILE)
+            COMPONENTS_CACHE_FILE.seek(0)
+
             return func_call_result.set_id(elem_id).classes([component_name])
 
         return inner
