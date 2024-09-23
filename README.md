@@ -9,6 +9,11 @@ A Python web development framework for `htmx` and `tailwindcss`, with hot module
 - Dependency injection helpers
 - hot module reload
 
+Or just look at this quick demo to see it in action:
+<video width="400"  controls>
+  <source src="./docs/media/hmr_demo.mp4" type="video/mp4">
+</video>
+
 ## Usage
 
 Starter example with hot module replacement:
@@ -155,11 +160,6 @@ env ENV=dev TEMPLATES_DIR=app/templates python app/main.py
 and open the browser at `http://localhost:8000`.
 
 Go ahead, edit the templates and see the changes reflected in the browser!
-
-Or just look at this quick demo to see how it in action:
-<video width="400"  controls>
-  <source src="./media/hmr_demo.mp4" type="video/mp4">
-</video>
 
 ## Walkthrough
 
@@ -318,8 +318,8 @@ hello_url = hello_url_func(name=name)
 We can use the `ViewContext` object to locate the URL of a path function.  
 We require that the path parameters are passed as keyword arguments, and not as positional arguments.  
 The advantage of this approach is that we get type checking in our IDE:
-![Screenshot](./media/url_of_type_hint.png)
-![Screenshot](./media/url_of_type_hint_2.png)
+![Screenshot](./docs/media/url_of_type_hint.png)
+![Screenshot](./docs/media/url_of_type_hint_2.png)
 
 ```py
 return div(classes=["m-auto", "bg-green-400", "p-2", "rounded-lg", "w-max"]).insert(
