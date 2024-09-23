@@ -10,7 +10,7 @@ A Python web development framework for `htmx` and `tailwindcss`, with hot module
 - hot module reload
 
 Look at this quick demo to see it in action:
-https://github.com/user-attachments/assets/5c547afd-a2cd-4516-8640-85dfe6d30331
+[![Watch the video](https://img.youtube.com/vi/VIDEO_ID/maxresdefault.jpg)](https://github.com/crpier/relax-py/blob/main/docs/media/hmr_demo.mp4)
 
 
 
