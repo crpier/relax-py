@@ -10,9 +10,7 @@ A Python web development framework for `htmx` and `tailwindcss`, with hot module
 - hot module reload
 
 Or just look at this quick demo to see it in action:
-<video width="400"  controls>
-  <source src="./docs/media/hmr_demo.mp4" type="video/mp4">
-</video>
+[![Watch the demo](./docs/media/hmr_demo.mp4)](./docs/media/hmr_demo.mp4)
 
 ## Usage
 
@@ -319,6 +317,7 @@ We can use the `ViewContext` object to locate the URL of a path function.
 We require that the path parameters are passed as keyword arguments, and not as positional arguments.  
 The advantage of this approach is that we get type checking in our IDE:
 ![Screenshot](./docs/media/url_of_type_hint.png)
+And:
 ![Screenshot](./docs/media/url_of_type_hint_2.png)
 
 ```py
