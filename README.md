@@ -10,6 +10,7 @@ A Python web development framework for `htmx` and `tailwindcss`, with hot module
 - hot module reload
 
 Quick demo of hot module reload:
+
 [![Quick demo of hot module reload](https://img.youtube.com/vi/94ayMovjNpw/hqdefault.jpg)](https://youtu.be/94ayMovjNpw)
 
 
