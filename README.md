@@ -9,9 +9,7 @@ A Python web development framework for `htmx` and `tailwindcss`, with hot module
 - Dependency injection helpers
 - hot module reload
 
-Look at this quick demo to see it in action:
-[![Watch the video](https://img.youtube.com/vi/94ayMovjNpw/hqdefault.jpg)](https://youtu.be/94ayMovjNpw)
-
+[![Quick demo of hot module reload](https://img.youtube.com/vi/94ayMovjNpw/hqdefault.jpg)](https://youtu.be/94ayMovjNpw)
 
 
 ## Usage
