@@ -1,30 +1,17 @@
 import asyncio
 import contextlib
-import logging
-from starlette.middleware import Middleware
 import importlib
+import inspect
 import json
+import logging
 import os
+from dataclasses import _MISSING_TYPE, Field, is_dataclass
+from enum import StrEnum, auto
+from functools import wraps
+from html import escape
+from inspect import Parameter, signature
 from pathlib import Path
 from types import ModuleType
-
-from pydantic import BaseModel
-
-from relax.injection import (
-    Injected,
-    injectable,
-    COMPONENTS_CACHE_FILE,
-    _COMPONENT_NAMES,
-)
-from relax.config import BaseConfig
-from starlette.websockets import WebSocket, WebSocketDisconnect
-
-
-import inspect
-from dataclasses import Field, _MISSING_TYPE, is_dataclass
-from enum import StrEnum, auto
-from functools import partial, wraps
-from inspect import Parameter, signature
 from typing import (
     Annotated,
     Any,
@@ -37,25 +24,33 @@ from typing import (
     Literal,
     Mapping,
     Protocol,
-    Self,
     Sequence,
     TypedDict,
     TypeVar,
     get_args,
     get_origin,
 )
-from starlette.datastructures import URL, UploadFile, URLPath
 
 import starlette.requests
+import starlette.responses
 import starlette.types
+from pydantic import BaseModel
 from starlette.applications import Starlette
 from starlette.authentication import requires
-import starlette.responses
+from starlette.datastructures import URL, UploadFile, URLPath
+from starlette.middleware import Middleware
 from starlette.routing import Route
+from starlette.websockets import WebSocket, WebSocketDisconnect
 from typing_extensions import ParamSpec
 
 import relax.html
-from html import escape
+from relax.config import BaseConfig
+from relax.injection import (
+    _COMPONENT_NAMES,
+    COMPONENTS_CACHE_FILE,
+    Injected,
+    injectable,
+)
 
 QueryStr = Annotated[str, "query_param"]
 QueryInt = Annotated[int, "query_param"]
@@ -227,89 +222,21 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         CLIENTS.remove(websocket)
 
 
-class ViewContext:
-    def __init__(self) -> None:
-        self._app: Starlette | None = None
-        self.endpoints: dict[Callable, Any] = {}
-        self.path_functions: dict[Callable, Callable] = {}
-
-    def attach_to_app(self, app: Starlette) -> Self:
-        self._app = app
-        return self
-
-    def add_endpoint(self, sig: Any, endpoint: Callable) -> None:
-        self.endpoints[sig] = endpoint
-
-    def endpoint(self, sig: type[T]) -> T:
-        return self.endpoints[sig]
-
-    def get_path_from_function_call(
-        self,
-        func_name: str,
-        func: Callable,
-        **kwargs: Any,
-    ) -> URLPath:
-        if self._app is None:
-            msg = "App instance not set on ViewContext"
-            raise ValueError(msg)
-        query_params: dict[str, Any] = {}
-        for name, param in signature(func).parameters.items():
-            if name == "request":
-                continue
-            args = get_annotated(param)
-            if args and args[1] == "query_param":
-                try:
-                    query_params[name] = kwargs.pop(name)
-                except KeyError as e:
-                    msg = f"missing query parameter {name} for {func_name}"
-                    raise ValueError(msg) from e
-        base_url = self._app.url_path_for(func_name, **kwargs)
-        if query_params != {}:
-            for idx, (name, param) in enumerate(query_params.items()):
-                if idx == 0:
-                    base_url = URLPath(
-                        f"{base_url}?{name}={escape(str(param), quote=True)}",
-                    )
-                else:
-                    base_url = URLPath(
-                        f"{base_url}&{name}={escape(str(param), quote=True)}",
-                    )
-        return base_url
-
-    def add_path_function(self, func: Callable) -> None:
-        if self._app is None:
-            msg = "App instance not set on ViewContext"
-            raise ValueError(msg)
-        self.path_functions[func] = partial(
-            self.get_path_from_function_call,
-            func_name=func.__name__,
-            func=func,
-        )
-
-    def url_of(
-        self,
-        func: Callable[Concatenate["Request", P], Awaitable[Any]],
-    ) -> Callable[P, URL]:
-        return self.path_functions[func]  # type: ignore
-
-
 class App(Starlette):
     def __init__(
         self,
-        view_context: ViewContext,
         config: BaseConfig,
         debug: bool = False,
         middleware: Sequence[Middleware] | None = None,
         lifespan: starlette.types.Lifespan["App"] | None = None,
     ) -> None:
         super().__init__(debug=debug, middleware=middleware, lifespan=lifespan)
-        self.view_context = view_context.attach_to_app(self)
         self.config = config
 
     def add_router(self, router: "Router") -> None:
+        router.app = self
         for route in router.routes:
             self.routes.append(route)
-            self.view_context.add_path_function(route.endpoint)
 
     def listen_to_template_changes(self) -> None:
         print("Listening to template changes for hot-module replacement")
@@ -326,12 +253,14 @@ class App(Starlette):
         print("started listening on socket: ", self.reload_server.is_serving())
 
 
-class BaseRouter(Protocol): ...
+class BaseRouter(Protocol):
+    ...
 
 
 class Router(BaseRouter):
     def __init__(self) -> None:
         self.routes: list[Route] = []
+        self.app: App | None = None
 
     def path_function(  # noqa: ANN201
         self,
@@ -342,7 +271,9 @@ class Router(BaseRouter):
         if auth_scopes is None:
             auth_scopes = []
 
-        def decorator(func):  # noqa: ANN001, ANN202
+        def decorator(
+            func: Callable[Concatenate["Request", P], Awaitable[Any]],
+        ) -> Callable[P, URLPath]:
             @wraps(func)
             @requires(auth_scopes)
             async def inner(request: starlette.requests.Request):  # noqa: ANN202
@@ -389,7 +320,37 @@ class Router(BaseRouter):
                 Route(endpoint, inner, methods=[method], name=func.__name__),
             )
 
-            return inner
+            def get_url(
+                **kwargs: Any,
+            ) -> URLPath:
+                if self.app is None:
+                    msg = "App instance not set on ViewContext"
+                    raise ValueError(msg)
+                query_params: dict[str, Any] = {}
+                for name, param in signature(func).parameters.items():
+                    if name == "request":
+                        continue
+                    args = get_annotated(param)
+                    if args and args[1] == "query_param":
+                        try:
+                            query_params[name] = kwargs.pop(name)
+                        except KeyError as e:
+                            msg = f"missing query parameter {name} for {func.__name__}"
+                            raise ValueError(msg) from e
+                base_url = self.app.url_path_for(func.__name__, **kwargs)
+                if query_params != {}:
+                    for idx, (name, param) in enumerate(query_params.items()):
+                        if idx == 0:
+                            base_url = URLPath(
+                                f"{base_url}?{name}={escape(str(param), quote=True)}",
+                            )
+                        else:
+                            base_url = URLPath(
+                                f"{base_url}&{name}={escape(str(param), quote=True)}",
+                            )
+                return base_url
+
+            return get_url
 
         return decorator
 
